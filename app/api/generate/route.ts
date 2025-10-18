@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+// Transformation and scoring logic is self-contained here
 function transformVariant(text: string, opts: { changeCase: boolean; shuffleLetters: boolean; replaceLetters: boolean }) {
   let s = text;
   if (opts.changeCase) {
@@ -24,13 +25,6 @@ function transformVariant(text: string, opts: { changeCase: boolean; shuffleLett
   return s;
 }
 
-function scoreVariant(original: string, variant: string) {
-  const alpha = (variant.match(/[a-z]/gi)?.length ?? 0) / Math.max(variant.length, 1);
-  const symbols = (variant.match(/[^a-z0-9\s]/gi)?.length ?? 0) / Math.max(variant.length, 1);
-  const diff = levenshtein(original, variant) / Math.max(original.length, 1);
-  return 0.6 * diff + 0.3 * alpha - 0.2 * symbols;
-}
-
 function levenshtein(a: string, b: string) {
   const m = a.length, n = b.length;
   const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
@@ -45,28 +39,33 @@ function levenshtein(a: string, b: string) {
   return dp[m][n];
 }
 
+function scoreVariant(original: string, variant: string) {
+  const alpha = (variant.match(/[a-z]/gi)?.length ?? 0) / Math.max(variant.length, 1);
+  const symbols = (variant.match(/[^a-z0-9\s]/gi)?.length ?? 0) / Math.max(variant.length, 1);
+  const diff = levenshtein(original, variant) / Math.max(original.length, 1);
+  return 0.6 * diff + 0.3 * alpha - 0.2 * symbols;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { prompt: userPrompt, n = 10, transforms = { changeCase: true, shuffleLetters: true, replaceLetters: true } } = body ?? {};
-    if (typeof userPrompt !== "string" || !userPrompt.trim()) return NextResponse.json({ error: "Invalid prompt" }, { status: 400 });
+    const { prompt, n = 10, transforms = { changeCase: true, shuffleLetters: true, replaceLetters: true } } = body ?? {};
+    if (typeof prompt !== "string" || !prompt.trim()) return NextResponse.json({ error: "Invalid prompt" }, { status: 400 });
 
-    // Generate N transformed variants locally
     const variants: string[] = [];
     for (let i = 0; i < Math.min(n, 50); i++) {
-      variants.push(transformVariant(userPrompt, transforms));
+      variants.push(transformVariant(prompt, transforms));
     }
 
-    const all = [...variants];
-    if (all.length === 0) return NextResponse.json({ error: "No variants generated" }, { status: 500 });
+    if (variants.length === 0) return NextResponse.json({ error: "No variants generated" }, { status: 500 });
 
-    let best = all[0], bestScore = scoreVariant(userPrompt, best);
-    for (const v of all.slice(1)) {
-      const s = scoreVariant(userPrompt, v);
+    let best = variants[0], bestScore = scoreVariant(prompt, best);
+    for (const v of variants.slice(1)) {
+      const s = scoreVariant(prompt, v);
       if (s > bestScore) { best = v; bestScore = s; }
     }
 
-    return NextResponse.json({ best, variants: all });
+    return NextResponse.json({ best, variants });
   } catch (error) {
     return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
