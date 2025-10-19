@@ -42,7 +42,7 @@ def is_refusal(response_text):
     """
     response_lower = response_text.lower()
     for phrase in REFUSAL_PHRASES:
-        if phrase in response_lower:
+        if phrase.lower() in response_lower:
             return True
     return False
 
