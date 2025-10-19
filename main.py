@@ -8,7 +8,11 @@ from jailbreaker import BestOfNJailbreaker, get_model_api
 # Load environment variables from .env file
 load_dotenv()
 
-# --- FastAPI Web Server ---
+# --- DISABLED WEB SERVER ---
+# The following FastAPI server is preserved so it can be easily re-activated for web deployment.
+# It is disabled by default to configure the project as an offline-only CLI tool.
+# ---------------------------
+"""
 api_app = FastAPI()
 
 class JailbreakRequest(BaseModel):
@@ -41,7 +45,7 @@ async def generate_jailbreak(request: JailbreakRequest):
     best_response, score = bon.jailbreak(request.goal)
 
     return JailbreakResponse(best_response=best_response, score=score)
-
+"""
 
 # --- Command-Line Interface ---
 cli_app = typer.Typer()
@@ -71,6 +75,7 @@ def run(
     target_model: str = typer.Option("gpt-3.5-turbo", "--target", "-t", help="The target model to jailbreak."),
     evaluator_model: str = typer.Option("gpt-4", "--evaluator", "-e", help="The evaluator model (judge)."),
     n_samples: int = typer.Option(20, "--samples", "-n", help="The number of samples (N) to generate."),
+    prompt_template: str = typer.Option("jailbreak_template.txt", "--template", "-p", help="The prompt template file to use from the prompts/ directory."),
 ):
     """
     Run the Best-of-N jailbreak process from the command line.
@@ -81,7 +86,7 @@ def run(
     try:
         with open("prompts/system_prompt.txt", "r") as f:
             system_prompt = f.read()
-        with open("prompts/jailbreak_template.txt", "r") as f:
+        with open(f"prompts/{prompt_template}", "r") as f:
             template = f.read()
     except FileNotFoundError:
         typer.echo("⚠️ Prompt files not found. Using default placeholder prompts.")

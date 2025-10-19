@@ -38,3 +38,6 @@ dev = [
 
 [project.scripts]
 jailbreak-cli = "main:cli_app"
+
+[tool.setuptools]
+packages = ["jailbreaker"]
