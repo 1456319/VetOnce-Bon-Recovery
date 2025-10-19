@@ -1,0 +1,40 @@
+# PEP 621 – Storing project metadata in pyproject.toml
+# This is the modern standard for Python project configuration.
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bon-jailbreaker"
+version = "0.1.0"
+authors = [
+  { name="VetOnce", email="author@example.com" },
+]
+description = "A tool to implement the Best-of-N Jailbreaking method."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+# Core dependencies to run the logic
+dependencies = [
+    "openai",
+    "anthropic",
+    "python-dotenv",
+    "typer[all]", # For a rich command-line interface
+    "fastapi",    # For the web server API
+    "uvicorn[standard]", # ASGI server for FastAPI
+    "pydantic"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "requests", # useful for testing the API endpoint
+]
+
+[project.scripts]
+jailbreak-cli = "main:cli_app"
