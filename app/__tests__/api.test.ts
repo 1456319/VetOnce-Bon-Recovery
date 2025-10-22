@@ -32,6 +32,7 @@ describe('API Route: /api/generate', () => {
       n_steps: 2,
       num_concurrent_k: 3,
       msj_num_shots: 1,
+      asr_threshold: 1.0,
     };
 
     const req = new NextRequest('http://localhost/api/generate', {
@@ -49,5 +50,19 @@ describe('API Route: /api/generate', () => {
     expect(typeof data.best_asr).toBe('number');
     expect(data.best_asr).toBeGreaterThanOrEqual(0);
     expect(data.best_asr).toBeLessThanOrEqual(1);
+  });
+
+  it('should return a 400 error for an invalid request', async () => {
+    const requestBody = {
+      // Missing harmful_text
+    };
+
+    const req = new NextRequest('http://localhost/api/generate', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+
+    const response = await POST(req);
+    expect(response.status).toBe(400);
   });
 });
