@@ -1,7 +1,7 @@
 import { getTokenizer, getAttackString } from './text_utils';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SeededRandom } from './rng';
+import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider';
 
 export interface TextAugmentation {
   seed: number;
@@ -19,16 +19,13 @@ export interface TextAugmentation {
  * @param sigma The probability of scrambling a word.
  * @returns The scrambled text.
  */
-export function applyWordScrambling(text: string, sigma: number, rng: SeededRandom): string {
+export function applyWordScrambling(text: string, sigma: number, rng: PythonRandomProvider): string {
   const words = text.split(' ');
   const scrambledWords = words.map(word => {
-    if (word.length > 3 && rng.next() < Math.sqrt(sigma)) {
+    if (word.length > 3 && rng.np_random() < Math.sqrt(sigma)) {
       const chars = word.split('');
       const middle_chars = chars.slice(1, -1);
-      for (let i = middle_chars.length - 1; i > 0; i--) {
-        const j = Math.floor(rng.next() * (i + 1));
-        [middle_chars[i], middle_chars[j]] = [middle_chars[j], middle_chars[i]];
-      }
+      rng.np_shuffle(middle_chars);
       return chars[0] + middle_chars.join('') + chars[chars.length - 1];
     }
     return word;
@@ -42,11 +39,11 @@ export function applyWordScrambling(text: string, sigma: number, rng: SeededRand
  * @param sigma The probability of changing the case of a letter.
  * @returns The text with random capitalization.
  */
-export function applyRandomCapitalization(text: string, sigma: number, rng: SeededRandom): string {
+export function applyRandomCapitalization(text: string, sigma: number, rng: PythonRandomProvider): string {
   return text
     .split('')
     .map(c => {
-      if (/[a-zA-Z]/.test(c) && rng.next() < Math.sqrt(sigma)) {
+      if (/[a-zA-Z]/.test(c) && rng.np_random() < Math.sqrt(sigma)) {
         return c.toUpperCase() === c ? c.toLowerCase() : c.toUpperCase();
       }
       return c;
@@ -60,12 +57,12 @@ export function applyRandomCapitalization(text: string, sigma: number, rng: Seed
  * @param sigma The probability of perturbing a character.
  * @returns The text with ASCII noise.
  */
-export function applyAsciiNoising(text: string, sigma: number, rng: SeededRandom): string {
+export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandomProvider): string {
   return text
     .split('')
     .map(c => {
-      if (c.charCodeAt(0) >= 32 && c.charCodeAt(0) <= 126 && rng.next() < Math.pow(sigma, 3)) {
-        const perturbation = rng.next() < 0.5 ? -1 : 1;
+      if (c.charCodeAt(0) >= 32 && c.charCodeAt(0) <= 126 && rng.np_random() < Math.pow(sigma, 3)) {
+        const perturbation = rng.np_random() < 0.5 ? -1 : 1;
         const newCharCode = c.charCodeAt(0) + perturbation;
         if (newCharCode >= 32 && newCharCode <= 126) {
           return String.fromCharCode(newCharCode);
@@ -98,7 +95,7 @@ export function processTextAugmentation(
   random_prefix_length = 0,
   random_suffix_length = 0
 ): [string, TextAugmentation] {
-  const rng = new SeededRandom(seed);
+  const rng = new PythonRandomProvider(seed);
   let augmentedText = text;
 
   const text_augmentation: TextAugmentation = {
@@ -190,11 +187,8 @@ export function processDecoratedTextWithAugmentations(
     const all_msj_prefixes: [string, string][] = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
 
     if (msj_shuffle) {
-      const rng = new SeededRandom(seed);
-      for (let i = all_msj_prefixes.length - 1; i > 0; i--) {
-        const j = Math.floor(rng.next() * (i + 1));
-        [all_msj_prefixes[i], all_msj_prefixes[j]] = [all_msj_prefixes[j], all_msj_prefixes[i]];
-      }
+      const rng = new PythonRandomProvider(seed);
+      rng.np_shuffle(all_msj_prefixes);
     }
 
     msj_prefixes = all_msj_prefixes.slice(0, msj_num_shots);
