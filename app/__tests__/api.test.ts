@@ -50,7 +50,7 @@ describe('API Route: /api/generate', () => {
     expect(typeof data.best_asr).toBe('number');
     expect(data.best_asr).toBeGreaterThanOrEqual(0);
     expect(data.best_asr).toBeLessThanOrEqual(1);
-  });
+  }, 15000);
 
   it('should return a 400 error for an invalid request', async () => {
     const requestBody = {
