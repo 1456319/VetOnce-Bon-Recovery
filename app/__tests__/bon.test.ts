@@ -8,41 +8,32 @@ import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider';
 
 describe('Text Augmentation Functions', () => {
   describe('applyWordScrambling', () => {
-    it('should scramble the middle of words longer than 3 characters deterministically', () => {
+    it('should scramble the middle of words longer than 3 characters correctly', () => {
       const text = 'The quick brown fox jumps over the lazy dog';
-      const rng1 = new PythonRandomProvider(123);
-      const scrambled1 = applyWordScrambling(text, 1.0, rng1);
-
-      const rng2 = new PythonRandomProvider(123);
-      const scrambled2 = applyWordScrambling(text, 1.0, rng2);
-
-      expect(scrambled1).toEqual(scrambled2);
+      const rng = new PythonRandomProvider(123);
+      const scrambled = applyWordScrambling(text, 1.0, rng);
+      const expectedGoldenOutput = "The qiuck brown fox jpums over the lazy dog";
+      expect(scrambled.trim()).toEqual(expectedGoldenOutput.trim());
     });
   });
 
   describe('applyRandomCapitalization', () => {
-    it('should randomly capitalize and decapitalize letters deterministically', () => {
+    it('should randomly capitalize and decapitalize letters correctly', () => {
       const text = 'The quick brown fox jumps over the lazy dog';
-      const rng1 = new PythonRandomProvider(123);
-      const capitalized1 = applyRandomCapitalization(text, 1.0, rng1);
-
-      const rng2 = new PythonRandomProvider(123);
-      const capitalized2 = applyRandomCapitalization(text, 1.0, rng2);
-
-      expect(capitalized1).toEqual(capitalized2);
+      const rng = new PythonRandomProvider(123);
+      const capitalized = applyRandomCapitalization(text, 1.0, rng);
+      const expectedGoldenOutput = "tHE QUICK BROWN FOX JUMPS OVER THE LAZY DOG";
+      expect(capitalized.trim()).toEqual(expectedGoldenOutput.trim());
     });
   });
 
   describe('applyAsciiNoising', () => {
-    it('should add ASCII noise to the text deterministically', () => {
+    it('should add ASCII noise to the text correctly', () => {
       const text = 'The quick brown fox jumps over the lazy dog';
-      const rng1 = new PythonRandomProvider(123);
-      const noised1 = applyAsciiNoising(text, 1.0, rng1);
-
-      const rng2 = new PythonRandomProvider(123);
-      const noised2 = applyAsciiNoising(text, 1.0, rng2);
-
-      expect(noised1).toEqual(noised2);
+      const rng = new PythonRandomProvider(123);
+      const noised = applyAsciiNoising(text, 1.0, rng);
+      const expectedGoldenOutput = "Sid!pvhdj!csnvo eny!itlqt!pufs!ugd!mb{x!enh";
+      expect(noised.trim()).toEqual(expectedGoldenOutput.trim());
     });
   });
 });
