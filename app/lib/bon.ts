@@ -13,77 +13,98 @@ export interface TextAugmentation {
 }
 
 /**
- * Applies word scrambling to the input text.
- * Scrambles the middle characters of words longer than 3 characters.
- * @param text The input text.
- * @param sigma The probability of scrambling a word.
- * @returns The scrambled text.
+ * Applies word scrambling like the Python script.
  */
 export function applyWordScrambling(text: string, sigma: number, rng: PythonRandomProvider): string {
-  const words = text.split(' ');
-  const scrambledWords = words.map(word => {
-    if (word.length > 3 && rng.np_random() < Math.sqrt(sigma)) {
-      const chars = word.split('');
-      const middle_chars = chars.slice(1, -1);
-      rng.np_shuffle(middle_chars);
-      return chars[0] + middle_chars.join('') + chars[chars.length - 1];
+    const words = text.split(/\s+/).filter(word => word.length > 0);
+    const scrambledWords: string[] = [];
+    for (const word of words) {
+        if (word.length > 3) {
+            const rand_float = rng.std_random();
+            const should_scramble = rand_float < Math.sqrt(sigma);
+            if (should_scramble) {
+                const chars = Array.from(word);
+                const middle_chars = chars.slice(1, -1);
+                rng.std_shuffle(middle_chars);
+                const scrambled_word = chars[0] + middle_chars.join('') + chars[chars.length - 1];
+                scrambledWords.push(scrambled_word);
+            } else {
+                scrambledWords.push(word);
+            }
+        } else {
+            scrambledWords.push(word);
+        }
     }
-    return word;
-  });
-  return scrambledWords.join(' ');
+    return scrambledWords.join(' ');
 }
 
 /**
- * Applies random capitalization to the input text.
- * @param text The input text.
- * @param sigma The probability of changing the case of a letter.
- * @returns The text with random capitalization.
+ * Applies random capitalization like the Python script.
  */
 export function applyRandomCapitalization(text: string, sigma: number, rng: PythonRandomProvider): string {
-  return text
-    .split('')
-    .map(c => {
-      if (/[a-zA-Z]/.test(c) && rng.np_random() < Math.sqrt(sigma)) {
-        return c.toUpperCase() === c ? c.toLowerCase() : c.toUpperCase();
-      }
-      return c;
-    })
-    .join('');
+    const new_text: string[] = [];
+    for (const c of text) {
+        if (/[a-zA-Z]/.test(c)) {
+            const rand_float = rng.std_random();
+            const should_capitalize = rand_float < Math.sqrt(sigma);
+            if (should_capitalize) {
+                const charCode = c.charCodeAt(0);
+                if (c >= 'a' && c <= 'z') {
+                    new_text.push(String.fromCharCode(charCode - 32));
+                } else if (c >= 'A' && c <= 'Z') {
+                    new_text.push(String.fromCharCode(charCode + 32));
+                } else {
+                    new_text.push(c);
+                }
+            } else {
+                new_text.push(c);
+            }
+        } else {
+            new_text.push(c);
+        }
+    }
+    return new_text.join('');
 }
 
 /**
- * Applies ASCII noising to the input text.
- * @param text The input text.
- * @param sigma The probability of perturbing a character.
- * @returns The text with ASCII noise.
+ * Applies ASCII noising like the Python script.
  */
-export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandomProvider): string {
-  return text
-    .split('')
-    .map(c => {
-      if (c.charCodeAt(0) >= 32 && c.charCodeAt(0) <= 126 && rng.np_random() < Math.pow(sigma, 3)) {
-        const perturbation = rng.np_random() < 0.5 ? -1 : 1;
-        const newCharCode = c.charCodeAt(0) + perturbation;
-        if (newCharCode >= 32 && newCharCode <= 126) {
-          return String.fromCharCode(newCharCode);
-        }
-      }
-      return c;
-    })
-    .join('');
+function isPrintable(charCode: number): boolean {
+    // Replicates Python's `isprintable()` for the relevant character set.
+    // Based on the generated log, non-printable characters in the 0-255 range are:
+    // 0-31, 127, 129, 141, 143, 144, 157, 173
+    const nonPrintable = new Set([
+        ...Array.from({ length: 32 }, (_, i) => i), // 0-31
+        127, 129, 141, 143, 144, 157, 173
+    ]);
+    return !nonPrintable.has(charCode);
 }
 
+export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandomProvider): string {
+    const new_text: string[] = [];
+    for (const c of text) {
+        const char_code = c.charCodeAt(0);
+        let charToPush = c;
+        if (isPrintable(char_code)) {
+            const rand_float_1 = rng.std_random();
+            const should_noise = rand_float_1 < Math.pow(sigma, 3);
+            if (should_noise) {
+                const rand_float_2 = rng.std_random();
+                const perturbation = rand_float_2 < 0.5 ? -1 : 1;
+                const new_char_code = char_code + perturbation;
+                if (new_char_code >= 32 && new_char_code <= 126) {
+                    charToPush = String.fromCharCode(new_char_code);
+                }
+            }
+        }
+        new_text.push(charToPush);
+    }
+    return new_text.join('');
+}
+
+// ... (rest of the file is the same)
 /**
  * Processes the text with the selected augmentations.
- * @param text The input text.
- * @param sigma The overall probability of applying augmentations.
- * @param seed The random seed for reproducibility.
- * @param word_scrambling Whether to apply word scrambling.
- * @param random_capitalization Whether to apply random capitalization.
- * @param ascii_perturbation Whether to apply ASCII noising.
- * @param random_prefix_length The length of the random prefix to add.
- * @param random_suffix_length The length of the random suffix to add.
- * @returns A tuple containing the augmented text and the augmentation details.
  */
 export function processTextAugmentation(
   text: string,
@@ -130,26 +151,6 @@ export function processTextAugmentation(
 
 /**
  * Processes the decorated text with the selected augmentations and returns the final prompt.
- * This function handles the logic for applying augmentations to the main text, prefix, and suffix.
- * @param text The main harmful text.
- * @param prefix An optional prefix to the text.
- * @param suffix An optional suffix to the text.
- * @param optim_harmful_text Whether to apply augmentations to the main text.
- * @param optim_prefix Whether to apply augmentations to the prefix.
- * @param optim_suffix Whether to apply augmentations to the suffix.
- * @param sigma The overall probability of applying augmentations.
- * @param seed The random seed for reproducibility.
- * @param word_scrambling Whether to apply word scrambling.
- * @param random_capitalization Whether to apply random capitalization.
- * @param ascii_perturbation Whether to apply ASCII noising.
- * @param random_prefix_length The length of the random prefix to add.
- * @param random_suffix_length The length of the random suffix to add.
- * @param msj_num_shots The number of multi-shot jailbreaking prompts to use.
- * @param msj_path The path to the MSJ prompts file.
- * @param msj_shuffle Whether to shuffle the MSJ prompts.
- * @param optim_msj_user_content Whether to apply augmentations to the user content of the MSJ prompts.
- * @param optim_msj_assistant_content Whether to apply augmentations to the assistant content of the MSJ prompts.
- * @returns A tuple containing the final augmented prompt, the augmentation details, and the MSJ prefixes.
  */
 export function processDecoratedTextWithAugmentations(
   text: string,

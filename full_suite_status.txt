@@ -1,0 +1,57 @@
+
+ RUN  v3.2.4 /app
+
+ ✓ src/utils/PythonRandomProvider.test.ts (2 tests) 1357ms
+   ✓ PythonRandomProvider > should produce deterministic random numbers based on a seed ("Golden Test")  868ms
+   ✓ PythonRandomProvider > should shuffle an array deterministically  487ms
+ ❯ app/__tests__/bon.test.ts (3 tests | 2 failed) 1921ms
+   × Text Augmentation Functions > applyWordScrambling > should scramble the middle of words longer than 3 characters deterministically 757ms
+     → expected 'The qiuck brown fox jpums over the la…' to deeply equal 'The qciuk bworn fox jupms oevr the la…'
+   ✓ Text Augmentation Functions > applyRandomCapitalization > should randomly capitalize and decapitalize letters deterministically  591ms
+   × Text Augmentation Functions > applyAsciiNoising > should add ASCII noise to the text deterministically 570ms
+     → expected 'Sid!pvhdj!csnvo eny!itlqt!pufs!ugd!mb…' to deeply equal 'Sid!pvhdl!aqnvo!epy!kvnor pwds!sif!kb…'
+ ✓ src/utils/cross_check_main.test.ts (2 tests) 2407ms
+   ✓ Step 1 — main cross-check (provider path) > raw uint32 streams from np_randint(0, 2**32) should match NumPy  1315ms
+   ✓ Step 1 — main cross-check (provider path) > np_shuffle should produce the same ordering as NumPy RandomState.shuffle  1089ms
+ ✓ app/__tests__/api.test.ts (2 tests) 9626ms
+   ✓ API Route: /api/generate > should process a valid request and return the best augmented prompt  9621ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  app/__tests__/bon.test.ts > Text Augmentation Functions > applyWordScrambling > should scramble the middle of words longer than 3 characters deterministically
+AssertionError: expected 'The qiuck brown fox jpums over the la…' to deeply equal 'The qciuk bworn fox jupms oevr the la…'
+
+Expected: [32m"The q[7mc[27miuk b[7mwor[27mn fox j[7mu[27mpms o[7me[27mvr the lazy dog"[39m
+Received: [31m"The qiu[7mc[27mk b[7mrow[27mn fox jp[7mu[27mms ov[7me[27mr the lazy dog"[39m
+
+ ❯ app/__tests__/bon.test.ts:16:25
+     14|       const scrambled = applyWordScrambling(text, 1.0, rng);
+     15|       const goldenScrambled = 'The qciuk bworn fox jupms oevr the lazy…
+     16|       expect(scrambled).toEqual(goldenScrambled);
+       |                         ^
+     17|     });
+     18|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  app/__tests__/bon.test.ts > Text Augmentation Functions > applyAsciiNoising > should add ASCII noise to the text deterministically
+AssertionError: expected 'Sid!pvhdj!csnvo eny!itlqt!pufs!ugd!mb…' to deeply equal 'Sid!pvhdl!aqnvo!epy!kvnor pwds!sif!kb…'
+
+Expected: [32m"Sid!pvhd[7ml!aqnvo!epy!kvnor pwds!sif!kby[27mx!en[7mf[27m"[39m
+Received: [31m"Sid!pvhd[7mj!csnvo eny!itlqt!pufs!ugd!mb{[27mx!en[7mh[27m"[39m
+
+ ❯ app/__tests__/bon.test.ts:36:22
+     34|       const noised = applyAsciiNoising(text, 1.0, rng);
+     35|       const goldenNoised = 'Sid!pvhdl!aqnvo!epy!kvnor pwds!sif!kbyx!en…
+     36|       expect(noised).toEqual(goldenNoised);
+       |                      ^
+     37|     });
+     38|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 7 passed (9)
+   Start at  21:00:45
+   Duration  14.78s (transform 374ms, setup 0ms, collect 989ms, tests 15.31s, environment 5.44s, prepare 751ms)
