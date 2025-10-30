@@ -8,9 +8,12 @@ import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider';
 
 describe('Text Augmentation Functions', () => {
   it('should scramble the middle of words longer than 3 characters deterministically', () => {
-    const text = 'The quick brown fox jumps over the lazy dog';
+    // This text now includes multiple spaces to test the implementation's divergence
+    // from Python's `split()` behavior.
+    const text = 'The quick  brown   fox jumps over the lazy dog';
     const rng = new PythonRandomProvider(123);
     const scrambled = applyWordScrambling(text, 1.0, rng);
+    // Golden value generated from the real Python implementation with `text.split()`.
     const goldenScrambled = 'The qciuk bworn fox jupms oevr the lazy dog';
     expect(scrambled).toEqual(goldenScrambled);
   });
@@ -24,10 +27,13 @@ describe('Text Augmentation Functions', () => {
   });
 
   it('should add ASCII noise to the text deterministically', () => {
-    const text = 'The quick brown fox jumps over the lazy dog';
-    const rng = new PythonRandomProvider(123);
+    // This text now includes a non-printable character (char code 128) to test
+    // the implementation's divergence from Python's `isprintable()` behavior.
+    const text = 'test' + String.fromCharCode(128) + 'test';
+    const rng = new PythonRandomProvider(42);
     const noised = applyAsciiNoising(text, 1.0, rng);
-    const goldenNoised = 'Sid!pvhdl!aqnvo!epy!kvnor pwds!sif!kbyx!enf';
+    // Golden value generated from the real Python implementation.
+    const goldenNoised = 'sdrs€sdru';
     expect(noised).toEqual(goldenNoised);
   });
 });
