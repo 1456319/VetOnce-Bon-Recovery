@@ -21,7 +21,7 @@ export interface TextAugmentation {
 export function applyWordScrambling(text: string, sigma: number, rng: PythonRandomProvider, logger?: Logger): string {
     logger?.(`applyWordScrambling INPUT: "${text}"`);
     // Replicating Python's text.split() behavior
-    const words = text.split(' ').filter(word => word.length > 0);
+    const words = text.split(/\s+/).filter(word => word.length > 0);
     logger?.(`applyWordScrambling words: ${JSON.stringify(words)}`);
     const scrambledWords: string[] = [];
     for (const word of words) {
@@ -33,7 +33,9 @@ export function applyWordScrambling(text: string, sigma: number, rng: PythonRand
                 const chars = Array.from(word);
                 const middle_chars = chars.slice(1, -1);
                 logger?.(`applyWordScrambling middle_chars before shuffle: ${JSON.stringify(middle_chars)}`);
+                logger?.(`applyWordScrambling PRE_SHUFFLE_STATE: ${JSON.stringify(rng.getState())}`);
                 rng.std_shuffle(middle_chars);
+                logger?.(`applyWordScrambling POST_SHUFFLE_STATE: ${JSON.stringify(rng.getState())}`);
                 logger?.(`applyWordScrambling middle_chars after shuffle: ${JSON.stringify(middle_chars)}`);
                 const scrambled_word = chars[0] + middle_chars.join('') + chars[chars.length - 1];
                 scrambledWords.push(scrambled_word);

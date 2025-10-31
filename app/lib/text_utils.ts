@@ -1,5 +1,5 @@
 import { Tiktoken } from 'tiktoken/lite';
-import { getEncoding } from 'tiktoken';
+import getEncoding from 'tiktoken';
 import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
 
 // A simple class to hold the attack string

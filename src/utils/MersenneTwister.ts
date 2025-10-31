@@ -23,6 +23,8 @@ export class MersenneTwister {
 
     public MT: number[];
     public index: number;
+    private bit_buffer: bigint;
+    private bit_count: number;
 
     constructor() {
         this.w = 32;
@@ -43,6 +45,8 @@ export class MersenneTwister {
         this.index = this.n + 1;
         this.lower_mask = ((1 << this.r) - 1) >>> 0;
         this.upper_mask = (~this.lower_mask) >>> 0;
+        this.bit_buffer = 0n;
+        this.bit_count = 0;
     }
 
     public initState(state: number[], index: number): void {
@@ -92,5 +96,26 @@ export class MersenneTwister {
 
         this.index += 1;
         return y >>> 0;
+    }
+
+    public getrandbits(k: number): bigint {
+        if (k <= 0) {
+            throw new Error("Number of bits must be greater than zero");
+        }
+
+        if (this.bit_count < k) {
+            const needed = k - this.bit_count;
+            const words = Math.ceil(needed / 32);
+            for (let i = 0; i < words; i++) {
+                this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
+                this.bit_count += 32;
+            }
+        }
+
+        const result = this.bit_buffer >> BigInt(this.bit_count - k);
+        this.bit_count -= k;
+        this.bit_buffer &= (1n << BigInt(this.bit_count)) - 1n;
+
+        return result;
     }
 }

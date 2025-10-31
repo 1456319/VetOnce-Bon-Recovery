@@ -56,7 +56,9 @@ def instrumented_apply_word_scrambling(text, sigma):
                 chars = list(word)
                 middle_chars = chars[1:-1]
                 log(f'applyWordScrambling middle_chars before shuffle: {json.dumps(middle_chars)}')
+                log(f'applyWordScrambling PRE_SHUFFLE_STATE: {json.dumps(random.getstate())}')
                 random.shuffle(middle_chars)
+                log(f'applyWordScrambling POST_SHUFFLE_STATE: {json.dumps(random.getstate())}')
                 log(f'applyWordScrambling middle_chars after shuffle: {json.dumps(middle_chars)}')
                 scrambled_word = chars[0] + "".join(middle_chars) + chars[-1]
                 scrambled_words.append(scrambled_word)

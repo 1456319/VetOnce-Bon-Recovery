@@ -77,9 +77,38 @@ export class PythonRandomProvider {
 
     public std_shuffle<T>(arr: T[]): void {
         for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(this.std_random() * (i + 1));
+            const j = this._std_randint(0, i + 1);
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
+    }
+
+    private _std_randint(low: number, high: number): number {
+        const n = high - low;
+
+        if (n <= 0) {
+            throw new Error("Range must be positive");
+        }
+
+        if (n === 1) {
+            return low;
+        }
+
+        const k = (n - 1).toString(2).length;
+
+        let r = this.stdGenerator.getrandbits(k);
+        while (r >= n) {
+            r = this.stdGenerator.getrandbits(k);
+        }
+
+        return Number(r) + low;
+    }
+
+    public std_randint(low: number, high: number): number {
+        return this._std_randint(low, high);
+    }
+
+    public getState(): [number[], number] {
+        return [this.stdGenerator.MT, this.stdGenerator.index];
     }
 
 
