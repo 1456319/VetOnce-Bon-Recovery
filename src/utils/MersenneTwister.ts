@@ -50,21 +50,14 @@ export class MersenneTwister {
         this.index = index;
     }
 
-    /**
-     * Generates a random float in [0,1) with 32-bit resolution.
-     */
     public random(): number {
-        return this.extract_number() * (1.0 / 4294967296.0); // 2**32
-    }
-
-    /**
-     * Generates a random float in [0,1) with 53-bit resolution,
-     * exactly like Python's random.random()
-     */
-    public random_res53(): number {
         const a = this.extract_number() >>> 5;
         const b = this.extract_number() >>> 6;
         return (a * 67108864.0 + b) * (1.0 / 9007199254740992.0);
+    }
+
+    public random_int_float(): number {
+        return this.extract_number() / 4294967296.0; // 2**32
     }
 
     private twist(): void {
