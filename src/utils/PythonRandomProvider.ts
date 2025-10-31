@@ -1,81 +1,94 @@
+// src/utils/PythonRandomProvider.ts
+
 import { execSync } from 'child_process';
 import { MersenneTwister } from './MersenneTwister';
 
-// Define an interface for the state we expect from Python
-interface IMersenneState {
+// --- Interfaces for the new JSON structure from Python ---
+
+interface ISimplifiedState {
     state_b64: string;
     index: number;
 }
 
+interface INpStateJson {
+  mt19937: string;
+  keys: number[];
+  pos: number;
+  has_gauss: number;
+  cached_gauss: number;
+}
+
 interface IAllPythonStates {
-    std_random: IMersenneState;
-    np_random: IMersenneState;
+  std_random_state_b64: string;
+  np_random_state: INpStateJson;
+  ts_std_random_state: ISimplifiedState;
+  ts_np_random_state: ISimplifiedState;
 }
 
 export class PythonRandomProvider {
     private stdGenerator: MersenneTwister;
     private npGenerator: MersenneTwister;
 
+    // Public members to store the full, opaque states for the verifier script
+    public readonly std_state_b64: string;
+    public readonly np_state_json: INpStateJson;
+
     constructor(seed: number) {
         if (!Number.isInteger(seed)) {
             throw new Error('Seed must be an integer.');
         }
 
-        // 1. Call the new Python script to get both states
-        const command = `python scripts/get_all_seed_states.py ${seed}`;
+        // 1. Call the refactored Python script to get all states
+        const command = `python3 scripts/get_all_seed_states.py ${seed}`;
         let statesJson: string;
-
         try {
-            statesJson = execSync(command, { encoding: 'utf-8' });
-        } catch (error) {
-            console.error(`Failed to get seed states from Python for seed: ${seed}`);
-            throw error;
+            statesJson = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });
+        } catch (error: any) {
+            console.error("Failed to get seed states from Python:", error.stderr);
+            throw new Error(error.stderr);
         }
 
-        // 2. Parse the JSON output
         const allStates: IAllPythonStates = JSON.parse(statesJson.trim());
 
-        // 3. Decode the Base64 state for the *standard* generator
-        const stdStateBytes = Buffer.from(allStates.std_random.state_b64, 'base64');
-        const stdState = new Uint32Array(stdStateBytes.buffer, stdStateBytes.byteOffset, stdStateBytes.byteLength / 4);
+        // 2. Store the full Python states for the verifier
+        this.std_state_b64 = allStates.std_random_state_b64;
+        this.np_state_json = allStates.np_random_state;
 
-        // 4. Decode the Base64 state for the *NumPy* generator
-        const npStateBytes = Buffer.from(allStates.np_random.state_b64, 'base64');
-        const npState = new Uint32Array(npStateBytes.buffer, npStateBytes.byteOffset, npStateBytes.byteLength / 4);
+        // 3. Initialize the TypeScript MersenneTwister generators using the simplified states
 
-        // 5. Initialize and inject the state for the *standard* generator
+        // Standard 'random' generator
+        const stdStateBytes = Buffer.from(allStates.ts_std_random_state.state_b64, 'base64');
+        const stdStateArray = new Uint32Array(stdStateBytes.buffer, stdStateBytes.byteOffset, stdStateBytes.byteLength / 4);
         this.stdGenerator = new MersenneTwister();
-        this.stdGenerator.initState(Array.from(stdState), allStates.std_random.index);
+        this.stdGenerator.initState(Array.from(stdStateArray), allStates.ts_std_random_state.index);
 
-        // 6. Initialize and inject the state for the *NumPy* generator
+        // NumPy 'numpy.random' generator
+        const npStateBytes = Buffer.from(allStates.ts_np_random_state.state_b64, 'base64');
+        const npStateArray = new Uint32Array(npStateBytes.buffer, npStateBytes.byteOffset, npStateBytes.byteLength / 4);
         this.npGenerator = new MersenneTwister();
-        this.npGenerator.initState(Array.from(npState), allStates.np_random.index);
+        this.npGenerator.initState(Array.from(npStateArray), allStates.ts_np_random_state.index);
     }
 
     // --- Methods for the 'random' library stream ---
 
-    /**
-     * Gets a random float [0, 1) from the standard 'random' stream.
-     */
     public std_random(): number {
-        return this.stdGenerator.random();
+        return this.stdGenerator.random_res53();
     }
+
+    public std_shuffle<T>(arr: T[]): void {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(this.std_random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+    }
+
 
     // --- Methods for the 'numpy.random' library stream ---
 
-    /**
-     * Gets a random float [0, 1) from the 'numpy.random' stream.
-     * (Equivalent to np.random.random() or np.random.rand())
-     */
     public np_random(): number {
         return this.npGenerator.random();
     }
 
-    /**
-     * Generates a random integer in the range [low, high) using the
-     * NumPy legacy C implementation (rk_interval).
-     * This uses rejection sampling with bitmasking.
-     */
     private _np_randint(low: number, high: number): number {
       const range = high - low;
 
@@ -99,25 +112,16 @@ export class PythonRandomProvider {
       while (true) {
         const rand_int32 = this.npGenerator.extract_number();
         random_val = (rand_int32 >>> 0) & mask;
-
         if (random_val < range) {
           return random_val + low;
         }
       }
     }
 
-    /**
-     * Gets a random int from [low, high) from the 'numpy.random' stream.
-     * (Equivalent to np.random.randint(low, high))
-     */
     public np_randint(low: number, high: number): number {
         return this._np_randint(low, high);
     }
 
-    /**
-     * Shuffles an array in place.
-     * (Equivalent to np.random.shuffle(arr))
-     */
     public np_shuffle<T>(arr: T[]): void {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = this._np_randint(0, i + 1);
