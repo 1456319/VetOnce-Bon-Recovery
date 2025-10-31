@@ -1,7 +1,7 @@
 // src/utils/PythonRandomProvider.ts
 
 import { execSync } from 'child_process';
-import { MersenneTwister } from './MersenneTwister';
+import { MersenneTwister } from './MersenneTwister.ts';
 
 // --- Interfaces for the new JSON structure from Python ---
 

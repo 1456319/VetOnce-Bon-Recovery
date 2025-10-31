@@ -1,7 +1,7 @@
-import { getTokenizer, getAttackString } from './text_utils';
+import { getTokenizer, getAttackString } from './text_utils.ts';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider';
+import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
 
 // A simple logger type for dependency injection
 export type Logger = (message: string) => void;
