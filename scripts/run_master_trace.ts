@@ -4,8 +4,8 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
-import { PythonRandomProvider } from '../src/utils/PythonRandomProvider';
-import { processTextAugmentation } from '../app/lib/bon';
+import { PythonRandomProvider } from '../src/utils/PythonRandomProvider.ts';
+import { processTextAugmentation } from '../app/lib/bon.ts';
 
 // --- 1. Configuration ---
 const SEED = 123;

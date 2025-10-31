@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "trace": "ts-node --project tsconfig.json scripts/run_master_trace.ts"
   },
   "dependencies": {
     "@radix-ui/react-icons": "^1.3.0",
