@@ -1,7 +1,10 @@
-import { getTokenizer, getAttackString } from './text_utils';
+import { getTokenizer, getAttackString } from './text_utils.ts';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider';
+import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
+
+// A simple logger type for dependency injection
+export type Logger = (message: string) => void;
 
 export interface TextAugmentation {
   seed: number;
@@ -15,19 +18,28 @@ export interface TextAugmentation {
 /**
  * Applies word scrambling like the Python script.
  */
-export function applyWordScrambling(text: string, sigma: number, rng: PythonRandomProvider): string {
+export function applyWordScrambling(text: string, sigma: number, rng: PythonRandomProvider, logger?: Logger): string {
+    logger?.(`applyWordScrambling INPUT: "${text}"`);
+    // Replicating Python's text.split() behavior
     const words = text.split(/\s+/).filter(word => word.length > 0);
+    logger?.(`applyWordScrambling words: ${JSON.stringify(words)}`);
     const scrambledWords: string[] = [];
     for (const word of words) {
         if (word.length > 3) {
             const rand_float = rng.std_random();
             const should_scramble = rand_float < Math.sqrt(sigma);
+            logger?.(`applyWordScrambling word: "${word}", rand_float: ${rand_float.toPrecision(17)}, should_scramble: ${should_scramble}`);
             if (should_scramble) {
                 const chars = Array.from(word);
                 const middle_chars = chars.slice(1, -1);
+                logger?.(`applyWordScrambling middle_chars before shuffle: ${JSON.stringify(middle_chars)}`);
+                logger?.(`applyWordScrambling PRE_SHUFFLE_STATE: ${JSON.stringify(rng.getState())}`);
                 rng.std_shuffle(middle_chars);
+                logger?.(`applyWordScrambling POST_SHUFFLE_STATE: ${JSON.stringify(rng.getState())}`);
+                logger?.(`applyWordScrambling middle_chars after shuffle: ${JSON.stringify(middle_chars)}`);
                 const scrambled_word = chars[0] + middle_chars.join('') + chars[chars.length - 1];
                 scrambledWords.push(scrambled_word);
+                logger?.(`applyWordScrambling scrambled_word: "${scrambled_word}"`);
             } else {
                 scrambledWords.push(word);
             }
@@ -35,18 +47,22 @@ export function applyWordScrambling(text: string, sigma: number, rng: PythonRand
             scrambledWords.push(word);
         }
     }
-    return scrambledWords.join(' ');
+    const result = scrambledWords.join(' ');
+    logger?.(`applyWordScrambling OUTPUT: "${result}"`);
+    return result;
 }
 
 /**
  * Applies random capitalization like the Python script.
  */
-export function applyRandomCapitalization(text: string, sigma: number, rng: PythonRandomProvider): string {
+export function applyRandomCapitalization(text: string, sigma: number, rng: PythonRandomProvider, logger?: Logger): string {
+    logger?.(`applyRandomCapitalization INPUT: "${text}"`);
     const new_text: string[] = [];
     for (const c of text) {
         if (/[a-zA-Z]/.test(c)) {
             const rand_float = rng.std_random();
             const should_capitalize = rand_float < Math.sqrt(sigma);
+            logger?.(`applyRandomCapitalization char: "${c}", rand_float: ${rand_float.toPrecision(17)}, should_capitalize: ${should_capitalize}`);
             if (should_capitalize) {
                 const charCode = c.charCodeAt(0);
                 if (c >= 'a' && c <= 'z') {
@@ -63,7 +79,9 @@ export function applyRandomCapitalization(text: string, sigma: number, rng: Pyth
             new_text.push(c);
         }
     }
-    return new_text.join('');
+    const result = new_text.join('');
+    logger?.(`applyRandomCapitalization OUTPUT: "${result}"`);
+    return result;
 }
 
 /**
@@ -80,7 +98,8 @@ function isPrintable(charCode: number): boolean {
     return !nonPrintable.has(charCode);
 }
 
-export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandomProvider): string {
+export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandomProvider, logger?: Logger): string {
+    logger?.(`applyAsciiNoising INPUT: "${text}"`);
     const new_text: string[] = [];
     for (const c of text) {
         const char_code = c.charCodeAt(0);
@@ -88,21 +107,26 @@ export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandom
         if (isPrintable(char_code)) {
             const rand_float_1 = rng.std_random();
             const should_noise = rand_float_1 < Math.pow(sigma, 3);
+            logger?.(`applyAsciiNoising char: "${c}", char_code: ${char_code}, is_printable: true, rand_float_1: ${rand_float_1.toPrecision(17)}, should_noise: ${should_noise}`);
             if (should_noise) {
                 const rand_float_2 = rng.std_random();
                 const perturbation = rand_float_2 < 0.5 ? -1 : 1;
                 const new_char_code = char_code + perturbation;
+                logger?.(`applyAsciiNoising rand_float_2: ${rand_float_2.toPrecision(17)}, perturbation: ${perturbation}, new_char_code: ${new_char_code}`);
+
                 if (new_char_code >= 32 && new_char_code <= 126) {
                     charToPush = String.fromCharCode(new_char_code);
                 }
             }
+        } else {
+             logger?.(`applyAsciiNoising char: "${c}", char_code: ${char_code}, is_printable: false`);
         }
         new_text.push(charToPush);
     }
-    return new_text.join('');
+    const result = new_text.join('');
+    logger?.(`applyAsciiNoising OUTPUT: "${result}"`);
+    return result;
 }
-
-// ... (rest of the file is the same)
 /**
  * Processes the text with the selected augmentations.
  */
@@ -114,9 +138,12 @@ export function processTextAugmentation(
   random_capitalization: boolean,
   ascii_perturbation: boolean,
   random_prefix_length = 0,
-  random_suffix_length = 0
+  random_suffix_length = 0,
+  logger?: Logger,
 ): [string, TextAugmentation] {
+  logger?.(`processTextAugmentation START`);
   const rng = new PythonRandomProvider(seed);
+  logger?.(`processTextAugmentation rng created with seed: ${seed}`);
   let augmentedText = text;
 
   const text_augmentation: TextAugmentation = {
@@ -129,23 +156,29 @@ export function processTextAugmentation(
   };
 
   if (random_prefix_length > 0) {
+    logger?.(`processTextAugmentation applying random prefix of length: ${random_prefix_length}`);
     const prefix = getAttackString(random_prefix_length, rng);
     augmentedText = prefix.getNormalisedString(getTokenizer()) + '\n\n' + augmentedText;
   }
   if (random_suffix_length > 0) {
+    logger?.(`processTextAugmentation applying random suffix of length: ${random_suffix_length}`);
     const suffix = getAttackString(random_suffix_length, rng);
     augmentedText = augmentedText + '\n\n' + suffix.getNormalisedString(getTokenizer());
   }
   if (word_scrambling) {
-    augmentedText = applyWordScrambling(augmentedText, sigma, rng);
+    logger?.(`processTextAugmentation applying word scrambling`);
+    augmentedText = applyWordScrambling(augmentedText, sigma, rng, logger);
   }
   if (random_capitalization) {
-    augmentedText = applyRandomCapitalization(augmentedText, sigma, rng);
+    logger?.(`processTextAugmentation applying random capitalization`);
+    augmentedText = applyRandomCapitalization(augmentedText, sigma, rng, logger);
   }
   if (ascii_perturbation) {
-    augmentedText = applyAsciiNoising(augmentedText, sigma, rng);
+    logger?.(`processTextAugmentation applying ascii perturbation`);
+    augmentedText = applyAsciiNoising(augmentedText, sigma, rng, logger);
   }
 
+  logger?.(`processTextAugmentation END`);
   return [augmentedText, text_augmentation];
 }
 
@@ -171,7 +204,10 @@ export function processDecoratedTextWithAugmentations(
   msj_shuffle: boolean,
   optim_msj_user_content: boolean,
   optim_msj_assistant_content: boolean,
+  logger?: Logger,
 ): [string, TextAugmentation, [string, string][] | null] {
+  logger?.('processDecoratedTextWithAugmentations START');
+
   if (!text.trim()) {
     throw new Error('Main text cannot be empty');
   }
@@ -189,6 +225,7 @@ export function processDecoratedTextWithAugmentations(
 
     if (msj_shuffle) {
       const rng = new PythonRandomProvider(seed);
+      logger?.(`processDecoratedTextWithAugmentations shuffling msj_prefixes with seed: ${seed}`);
       rng.np_shuffle(all_msj_prefixes);
     }
 
@@ -203,7 +240,10 @@ export function processDecoratedTextWithAugmentations(
               seed,
               word_scrambling,
               random_capitalization,
-              ascii_perturbation
+              ascii_perturbation,
+              0,
+              0,
+              logger
             )
           : [user_content];
 
@@ -214,7 +254,10 @@ export function processDecoratedTextWithAugmentations(
               seed,
               word_scrambling,
               random_capitalization,
-              ascii_perturbation
+              ascii_perturbation,
+              0,
+              0,
+              logger
             )
           : [assistant_content];
 
@@ -235,13 +278,17 @@ export function processDecoratedTextWithAugmentations(
 
   if (prefix) {
     if (optim_prefix) {
+      logger?.('processDecoratedTextWithAugmentations processing prefix');
       const [processed_prefix, augmentation] = processTextAugmentation(
         prefix,
         sigma,
         seed,
         word_scrambling,
         random_capitalization,
-        ascii_perturbation
+        ascii_perturbation,
+        0,
+        0,
+        logger
       );
       processed_parts.push(processed_prefix);
       text_augmentation = augmentation;
@@ -251,6 +298,7 @@ export function processDecoratedTextWithAugmentations(
   }
 
   if (optim_harmful_text) {
+    logger?.('processDecoratedTextWithAugmentations processing harmful text');
     const [processed_text, augmentation] = processTextAugmentation(
       text,
       sigma,
@@ -259,7 +307,8 @@ export function processDecoratedTextWithAugmentations(
       random_capitalization,
       ascii_perturbation,
       random_prefix_length,
-      random_suffix_length
+      random_suffix_length,
+      logger
     );
     processed_parts.push(processed_text);
     text_augmentation = augmentation;
@@ -269,13 +318,17 @@ export function processDecoratedTextWithAugmentations(
 
   if (suffix) {
     if (optim_suffix) {
+      logger?.('processDecoratedTextWithAugmentations processing suffix');
       const [processed_suffix, augmentation] = processTextAugmentation(
         suffix,
         sigma,
         seed,
         word_scrambling,
         random_capitalization,
-        ascii_perturbation
+        ascii_perturbation,
+        0,
+        0,
+        logger,
       );
       processed_parts.push(processed_suffix);
       text_augmentation = augmentation;
@@ -285,6 +338,8 @@ export function processDecoratedTextWithAugmentations(
   }
 
   const final_text = processed_parts.join(' ');
+  logger?.(`processDecoratedTextWithAugmentations final text: "${final_text}"`);
+  logger?.('processDecoratedTextWithAugmentations END');
 
   return [final_text, text_augmentation, msj_prefixes];
 }

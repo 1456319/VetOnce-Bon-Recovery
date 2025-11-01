@@ -1,6 +1,6 @@
 import { Tiktoken } from 'tiktoken/lite';
-import { getEncoding } from 'tiktoken';
-import { SeededRandom } from './rng';
+import getEncoding from 'tiktoken';
+import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
 
 // A simple class to hold the attack string
 export class AttackString {
@@ -45,16 +45,14 @@ export function getFilteredTokenIds(tokenizer: Tiktoken, regex_pattern?: RegExp)
 }
 
 // Function to generate an attack string of a given number of tokens
-export function getAttackString(num_tokens: number, rng: SeededRandom): AttackString {
+export function getAttackString(num_tokens: number, rng: PythonRandomProvider): AttackString {
   const tokenizer = getTokenizer();
   const all_ids = getFilteredTokenIds(tokenizer);
 
-  // Shuffle the array and take the first num_tokens elements for sampling without replacement
-  for (let i = all_ids.length - 1; i > 0; i--) {
-    const j = Math.floor(rng.next() * (i + 1));
-    [all_ids[i], all_ids[j]] = [all_ids[j], all_ids[i]];
-  }
+  // Shuffle the array using the provider's built-in method
+  rng.std_shuffle(all_ids);
 
-  const token_ids = all_ids.slice(0, num_tokens);
-  return new AttackString(token_ids);
+  // Take the first num_tokens elements
+  const sampled_ids = all_ids.slice(0, num_tokens);
+  return new AttackString(sampled_ids);
 }
