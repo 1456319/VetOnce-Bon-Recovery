@@ -44,7 +44,6 @@ export class PythonRandomProvider {
         try {
             statesJson = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });
         } catch (error: any) {
-            console.error("Failed to get seed states from Python:", error.stderr);
             throw new Error(error.stderr);
         }
 
