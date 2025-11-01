@@ -23,6 +23,8 @@ export class MersenneTwister {
 
     public MT: number[];
     public index: number;
+    private bit_buffer: bigint;
+    private bit_count: number;
 
     constructor() {
         this.w = 32;
@@ -43,6 +45,8 @@ export class MersenneTwister {
         this.index = this.n + 1;
         this.lower_mask = ((1 << this.r) - 1) >>> 0;
         this.upper_mask = (~this.lower_mask) >>> 0;
+        this.bit_buffer = 0n;
+        this.bit_count = 0;
     }
 
     public initState(state: number[], index: number): void {
@@ -50,14 +54,21 @@ export class MersenneTwister {
         this.index = index;
     }
 
+    /**
+     * Generates a random float in [0,1) with 32-bit resolution.
+     */
     public random(): number {
+        return this.extract_number() * (1.0 / 4294967296.0); // 2**32
+    }
+
+    /**
+     * Generates a random float in [0,1) with 53-bit resolution,
+     * exactly like Python's random.random()
+     */
+    public random_res53(): number {
         const a = this.extract_number() >>> 5;
         const b = this.extract_number() >>> 6;
         return (a * 67108864.0 + b) * (1.0 / 9007199254740992.0);
-    }
-
-    public random_int_float(): number {
-        return this.extract_number() / 4294967296.0; // 2**32
     }
 
     private twist(): void {
@@ -85,5 +96,26 @@ export class MersenneTwister {
 
         this.index += 1;
         return y >>> 0;
+    }
+
+    public getrandbits(k: number): bigint {
+        if (k <= 0) {
+            throw new Error("Number of bits must be greater than zero");
+        }
+
+        if (this.bit_count < k) {
+            const needed = k - this.bit_count;
+            const words = Math.ceil(needed / 32);
+            for (let i = 0; i < words; i++) {
+                this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
+                this.bit_count += 32;
+            }
+        }
+
+        const result = this.bit_buffer >> BigInt(this.bit_count - k);
+        this.bit_count -= k;
+        this.bit_buffer &= (1n << BigInt(this.bit_count)) - 1n;
+
+        return result;
     }
 }
