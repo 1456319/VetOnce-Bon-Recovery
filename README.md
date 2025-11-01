@@ -4,7 +4,7 @@ This repository contains a 1:1 TypeScript translation of the original Python cod
 
 The original code can be found at: github.com/jplhughes/bon-jailbreaking
 
-🔬 Academic Focus and Objectives
+Academic Focus and Objectives
 This project has two primary goals:
 
 
@@ -12,7 +12,7 @@ Verify Findings: To verify the findings and Attack Success Rates (ASRs) presente
 
 Analyze Implementation: To analyze a subtle bug we discovered in the original code's Random Number Generator (RNG) handling and explore its potential implications on the study's reproducibility.
 
-🐛 Summary of Our Findings: The RNG Desynchronization Flaw
+Summary of Our Findings: The RNG Desynchronization Flaw
 During our translation, we identified a flaw in the original Python implementation's process_text_augmentation function. This flaw causes a desynchronization between the two separate RNG streams used for augmentations, which breaks deterministic reproducibility when augmentation settings are changed, even if the same seed is used.
 
 The core of the issue is that the state of one RNG stream is inadvertently dependent on the execution path of logic that uses a different RNG stream.
