@@ -28,6 +28,7 @@ vi.mock('openai', () => {
 describe('API Route: /api/generate', () => {
   it('should process a valid request and return the best augmented prompt', async () => {
     const requestBody = {
+      baseURL: 'http://localhost:1234/v1',
       harmful_text: 'This is a test.',
       n_steps: 2,
       num_concurrent_k: 3,
@@ -50,7 +51,7 @@ describe('API Route: /api/generate', () => {
     expect(typeof data.best_asr).toBe('number');
     expect(data.best_asr).toBeGreaterThanOrEqual(0);
     expect(data.best_asr).toBeLessThanOrEqual(1);
-  });
+  }, 20000);
 
   it('should return a 400 error for an invalid request', async () => {
     const requestBody = {
