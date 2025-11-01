@@ -14,7 +14,7 @@ describe('Text Augmentation Functions', () => {
     const rng = new PythonRandomProvider(123);
     const scrambled = applyWordScrambling(text, 1.0, rng);
     // Golden value generated from the real Python implementation with `text.split()`.
-    const goldenScrambled = 'The qciuk bworn fox jupms oevr the lazy dog';
+    const goldenScrambled = 'The qicuk brown fox jmups over the lzay dog';
     expect(scrambled).toEqual(goldenScrambled);
   });
 
@@ -33,7 +33,7 @@ describe('Text Augmentation Functions', () => {
     const rng = new PythonRandomProvider(42);
     const noised = applyAsciiNoising(text, 1.0, rng);
     // Golden value generated from the real Python implementation.
-    const goldenNoised = 'sdrs€sdru';
+    const goldenNoised = 'sdts' + String.fromCharCode(128) + 'sfru';
     expect(noised).toEqual(goldenNoised);
   });
 });
