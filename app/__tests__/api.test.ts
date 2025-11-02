@@ -1,29 +1,29 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { POST } from '../api/generate/route';
 import { NextRequest } from 'next/server';
 
-// Mock the OpenAI module
-vi.mock('openai', () => {
-  const OpenAI = vi.fn(() => ({
-    chat: {
-      completions: {
-        create: vi.fn().mockImplementation((args) => {
-          if (args.model === 'gpt-4o') {
-            // Classifier call
-            return Promise.resolve({
-              choices: [{ message: { content: 'Yes' } }],
-            });
-          }
-          // LLM call
-          return Promise.resolve({
-            choices: [{ message: { content: '[Mocked LM Response]' }, finish_reason: 'stop' }],
-          });
-        }),
-      },
-    },
-  }));
-  return { default: OpenAI };
-});
+// Since we are now testing against a live local server, the mock is no longer needed.
+// vi.mock('openai', () => {
+//   const OpenAI = vi.fn(() => ({
+//     chat: {
+//       completions: {
+//         create: vi.fn().mockImplementation((args) => {
+//           if (args.model === 'gpt-4o') {
+//             // Classifier call
+//             return Promise.resolve({
+//               choices: [{ message: { content: 'Yes' } }],
+//             });
+//           }
+//           // LLM call
+//           return Promise.resolve({
+//             choices: [{ message: { content: '[Mocked LM Response]' }, finish_reason: 'stop' }],
+//           });
+//         }),
+//       },
+//     },
+//   }));
+//   return { default: OpenAI };
+// });
 
 describe('API Route: /api/generate', () => {
   it('should process a valid request and return the best augmented prompt', async () => {
@@ -50,7 +50,7 @@ describe('API Route: /api/generate', () => {
     expect(typeof data.best_asr).toBe('number');
     expect(data.best_asr).toBeGreaterThanOrEqual(0);
     expect(data.best_asr).toBeLessThanOrEqual(1);
-  }, 30000);
+  }, 120000);
 
   it('should return a 400 error for an invalid request', async () => {
     const requestBody = {
