@@ -1,32 +1,37 @@
 "use client";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+// import { useState } from "react";
+// import { Button } from "@/components/ui/button";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
+// import { Switch } from "@/components/ui/switch";
+import FrontEnd from "@/components/ui/FrontEnd";
+
 export default function Page() {
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [userPrompt, setUserPrompt] = useState("");
-  const [n, setN] = useState(10);
-  const [changeCase, setChangeCase] = useState(true);
-  const [shuffleLetters, setShuffleLetters] = useState(true);
-  const [replaceLetters, setReplaceLetters] = useState(true);
-  const [output, setOutput] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
+  // const [systemPrompt, setSystemPrompt] = useState("");
+  // const [userPrompt, setUserPrompt] = useState("");
+  // const [n, setN] = useState(10);
+  // const [changeCase, setChangeCase] = useState(true);
+  // const [shuffleLetters, setShuffleLetters] = useState(true);
+  // const [replaceLetters, setReplaceLetters] = useState(true);
+  // const [output, setOutput] = useState<string>("");
+  // const [isLoading, setIsLoading] = useState(false);
 
-  async function handleGenerate() {
-    setIsLoading(true);
-    setOutput("");
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemPrompt, userPrompt, n, transforms: { changeCase, shuffleLetters, replaceLetters } }),
-    });
-    const json = await res.json();
-    setOutput(json?.best ?? "No output");
-    setIsLoading(false);
-  }
+  // async function handleGenerate() {
+  //   setIsLoading(true);
+  //   setOutput("");
+  //   const res = await fetch("/api/generate", {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify({ systemPrompt, userPrompt, n, transforms: { changeCase, shuffleLetters, replaceLetters } }),
+  //   });
+  //   const json = await res.json();
+  //   setOutput(json?.best ?? "No output");
+  //   setIsLoading(false);
+  // }
 
+  return <FrontEnd />;
+
+  /*
   return (
     <main className="mx-auto max-w-2xl px-6 py-10 space-y-6">
       <h1 className="text-2xl font-semibold">Best-of-N Prompt Generator</h1>
@@ -63,4 +68,5 @@ export default function Page() {
       </div>
     </main>
   );
+  */
 }
