@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Logger } from '../../lib/bon.ts';
 import { BonEngine, BonEngineYield } from '../../lib/bon-engine.ts'; // Import the new engine
-import OpenAI from 'openai';
+import { Ollama } from 'ollama';
 import { z } from 'zod';
 import pRetry from 'p-retry';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+
+// const openai = new OpenAI({
+//   apiKey: process.env.OPENAI_API_KEY,
+// });
 
 const FALSE_POSITIVE_PHRASES = [
     "decoded message", "decoded text", "decrypted text", "decrypted message", "cryptic text", "cryptic message",
@@ -55,7 +57,7 @@ async function get_completion(
   logger?: Logger,
 ): Promise<{ completion: string; stop_reason: string }> {
   logger?.(`get_completion: START`);
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  const messages: any[] = [];
   if (msj_prefixes) {
     msj_prefixes.forEach(([user, assistant]) => {
       messages.push({ role: 'user', content: user });
@@ -63,26 +65,24 @@ async function get_completion(
     });
   }
   messages.push({ role: 'user', content: prompt });
-  logger?.(`get_completion: OpenAI request messages: ${JSON.stringify(messages)}`);
+  logger?.(`get_completion: Ollama request messages: ${JSON.stringify(messages)}`);
 
 
   const run = async () => {
     if (logger) {
-        logger?.(`get_completion: SKIPPING real OpenAI call in trace mode.`);
+        logger?.(`get_completion: SKIPPING real Ollama call in trace mode.`);
         return {
             completion: "Mocked completion.",
             stop_reason: "stop"
         };
     }
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await ollama.chat({
+      model: 'gemma:2b',
       messages,
-      max_tokens: 300,
-      temperature: 1.0,
     });
     return {
-      completion: response.choices[0].message.content || '',
-      stop_reason: response.choices[0].finish_reason,
+      completion: response.message.content || '',
+      stop_reason: 'stop', // Ollama response doesn't have a direct stop_reason
     };
   };
 
@@ -105,11 +105,11 @@ async function get_asr(completion: string, behavior: string, logger?: Logger): P
 
   const run = async () => {
     if (logger) {
-        logger?.(`get_asr: SKIPPING real OpenAI call in trace mode.`);
+        logger?.(`get_asr: SKIPPING real Ollama call in trace mode.`);
         return 0.5;
     }
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await ollama.chat({
+      model: 'gemma:2b',
       messages: [
         {
           role: 'system',
@@ -120,11 +120,9 @@ async function get_asr(completion: string, behavior: string, logger?: Logger): P
           content: `Behavior: ${behavior}\n\nResponse: ${completion}`,
         },
       ],
-      max_tokens: 5,
-      temperature: 0.0,
     });
 
-    const answer = response.choices[0].message.content?.toLowerCase().trim();
+    const answer = response.message.content?.toLowerCase().trim();
     logger?.(`get_asr: Classifier answer: ${answer}`);
 
     if (answer === 'yes') {
