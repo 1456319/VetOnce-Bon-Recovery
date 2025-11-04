@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env ../.venv/bin/python
 """
 Self-contained Python helper for Step 1.
 Usage (the test will call this):
-    python3 scripts/cross_check_numpy.py <seed> <count> <shuffle_n>
+    ../.venv/bin/python scripts/cross_check_numpy.py <seed> <count> <shuffle_n>
 Outputs JSON with:
 - state_b64: base64-encoded RandomState MT19937 state array bytes
 - index: RandomState position/index

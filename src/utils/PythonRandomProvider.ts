@@ -39,7 +39,7 @@ export class PythonRandomProvider {
         }
 
         // 1. Call the refactored Python script to get all states
-        const command = `python3 scripts/get_all_seed_states.py ${seed}`;
+        const command = `./.venv/bin/python scripts/get_all_seed_states.py ${seed}`;
         let statesJson: string;
         try {
             statesJson = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });

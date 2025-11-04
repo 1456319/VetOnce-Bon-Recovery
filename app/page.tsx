@@ -29,7 +29,16 @@ export default function Page() {
   //   setIsLoading(false);
   // }
 
-  return <FrontEnd />;
+  try {
+    return <FrontEnd />;
+  } catch (error: any) {
+    return (
+      <div>
+        <h1>An error occurred during rendering:</h1>
+        <pre>{error.message}</pre>
+      </div>
+    );
+  }
 
   /*
   return (

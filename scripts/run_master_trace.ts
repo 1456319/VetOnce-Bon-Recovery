@@ -38,7 +38,7 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
     const npStateJsonString = JSON.stringify(rngProvider.np_state_json).replace(/"/g, '\\"');
 
     const command = [
-        'python3',
+        '../.venv/bin/python',
         PY_VERIFIER_SCRIPT,
         `'${rngProvider.std_state_b64}'`,
         `"${npStateJsonString}"`,
