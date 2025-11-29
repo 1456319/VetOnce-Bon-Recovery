@@ -28,7 +28,7 @@ try {
     process.exit(1);
 }
 
-const tsLogger = (message: string) => fs.appendFileSync(TS_LOG, message + '\\n');
+const tsLogger = (message: string) => fs.appendFileSync(TS_LOG, message + '\n');
 
 // --- 3. Helper Functions ---
 function runPythonVerifier(rngProvider: PythonRandomProvider) {
@@ -37,8 +37,22 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
     // Escape special characters for shell command
     const npStateJsonString = JSON.stringify(rngProvider.np_state_json).replace(/"/g, '\\"');
 
+    // robustly determine python path
+    const localPy = path.resolve(process.cwd(), '.venv/bin/python');
+    const parentPy = path.resolve(process.cwd(), '../.venv/bin/python');
+
+    let pythonPath = '../.venv/bin/python'; // default to original
+    if (fs.existsSync(localPy)) {
+        pythonPath = './.venv/bin/python';
+    } else if (fs.existsSync(parentPy)) {
+        pythonPath = '../.venv/bin/python';
+    } else {
+        console.warn(chalk.yellow('Warning: Could not locate .venv in ./ or ../, defaulting to standard "python3"'));
+        pythonPath = 'python3';
+    }
+
     const command = [
-        '../.venv/bin/python',
+        pythonPath,
         PY_VERIFIER_SCRIPT,
         `'${rngProvider.std_state_b64}'`,
         `"${npStateJsonString}"`,
@@ -50,8 +64,36 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
         NOISING
     ].join(' ');
 
+    const containerPath = path.resolve(process.cwd(), 'bon-jailbreaking');
+    let sourcePath = containerPath;
+
     try {
-        execSync(command, { stdio: 'inherit', encoding: 'utf-8' });
+        // Find the actual source root (the hashed subdirectory)
+        const files = fs.readdirSync(containerPath);
+        const sourceRootName = files.find(f =>
+            fs.statSync(path.join(containerPath, f)).isDirectory() && !f.startsWith('.')
+        );
+
+        if (sourceRootName) {
+             sourcePath = path.join(containerPath, sourceRootName);
+        } else {
+             throw new Error(`Could not find source directory inside ${containerPath}`);
+        }
+    } catch (e) {
+         console.warn(chalk.yellow('Warning: Could not resolve nested bon-jailbreaking directory, using base path.'));
+    }
+
+    console.log(chalk.blue(`--- Corrected Python Source Path: ${sourcePath} ---`));
+
+    try {
+        execSync(command, {
+            stdio: 'inherit',
+            encoding: 'utf-8',
+            env: {
+                ...process.env,
+                PYTHONPATH: sourcePath
+            }
+        });
         console.log(chalk.green('--- Python Verifier finished successfully ---\n'));
         return true;
     } catch (error) {
@@ -78,7 +120,7 @@ function runTypeScriptTrace(rngProvider: PythonRandomProvider) {
         return true;
     } catch(error) {
         console.error(chalk.red('--- TypeScript Trace FAILED ---'));
-        tsLogger(`--- TypeScript Trace FAILED ---\\n${(error as Error).stack}`);
+        tsLogger(`--- TypeScript Trace FAILED ---\n${(error as Error).stack}`);
         return false;
     }
 }
@@ -88,8 +130,8 @@ function compareTraces() {
     // [Comparison logic remains the same as before]
     console.log(chalk.blue('--- Comparing Trace Files ---'));
 
-    const pyLines = fs.readFileSync(PY_LOG, 'utf-8').trim().split('\\n');
-    const tsLines = fs.readFileSync(TS_LOG, 'utf-8').trim().split('\\n');
+    const pyLines = fs.readFileSync(PY_LOG, 'utf-8').trim().split('\n');
+    const tsLines = fs.readFileSync(TS_LOG, 'utf-8').trim().split('\n');
 
     const numLines = Math.max(pyLines.length, tsLines.length);
     let divergenceFound = false;

@@ -2,33 +2,42 @@ import { describe, it, expect, vi } from 'vitest';
 import { POST } from '../api/generate/route';
 import { NextRequest } from 'next/server';
 
-// Mock the OpenAI module
-vi.mock('openai', () => {
-  const OpenAI = vi.fn(() => ({
-    chat: {
-      completions: {
-        create: vi.fn().mockImplementation((args) => {
-          if (args.model === 'gpt-4o') {
-            // Classifier call
-            return Promise.resolve({
-              choices: [{ message: { content: 'Yes' } }],
-            });
-          }
-          // LLM call
-          return Promise.resolve({
-            choices: [{ message: { content: '[Mocked LM Response]' }, finish_reason: 'stop' }],
-          });
-        }),
-      },
+// Mock the @lmstudio/sdk module
+vi.mock('@lmstudio/sdk', () => {
+  // Mock the LLM object returned by client.llm.load()
+  const MockLLM = {
+    path: 'mock-model-path',
+    // The route expects a response object with a 'content' property
+    respond: vi.fn().mockResolvedValue({
+      content: '[Mocked LM Response]',
+      stats: {},
+      model: 'mock-model-path'
+    }),
+  };
+
+  // Mock the Client object
+  const MockClient = {
+    llm: {
+      load: vi.fn().mockResolvedValue(MockLLM),
     },
-  }));
-  return { default: OpenAI };
+  };
+
+  // Mock the constructor
+  return {
+    LMStudioClient: vi.fn(() => MockClient),
+  };
 });
 
 describe('API Route: /api/generate', () => {
   it('should process a valid request and return the best augmented prompt', async () => {
     const requestBody = {
       harmful_text: 'This is a test.',
+      model: 'mock-model-path',
+      transforms: {
+        changeCase: true,
+        shuffleLetters: true,
+        replaceLetters: true,
+      },
       n_steps: 2,
       num_concurrent_k: 3,
       msj_num_shots: 1,

@@ -6,7 +6,18 @@ import {
 } from '../lib/bon';
 import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider';
 
+/**
+ * FUNCTIONAL INTENT:
+ * This test suite verifies 1:1 algorithmic parity with the Python reference implementation.
+ * The seeds and expected output strings are "Golden Values" derived from the Python source.
+ * DO NOT MODIFY these values unless the upstream Python algorithm changes.
+ */
 describe('Text Augmentation Functions', () => {
+  /**
+   * FUNCTIONAL INTENT:
+   * Verifies that word scrambling exactly matches the Python implementation's output for seed 123.
+   * This includes handling of whitespace splitting which differs between JS and Python.
+   */
   it('should scramble the middle of words longer than 3 characters deterministically', () => {
     // This text now includes multiple spaces to test the implementation's divergence
     // from Python's `split()` behavior.
@@ -18,6 +29,11 @@ describe('Text Augmentation Functions', () => {
     expect(scrambled).toEqual(goldenScrambled);
   });
 
+  /**
+   * FUNCTIONAL INTENT:
+   * Verifies that random capitalization exactly matches the Python implementation's output for seed 123.
+   * Ensures bit-for-bit parity in RNG consumption for character modification.
+   */
   it('should randomly capitalize and decapitalize letters deterministically', () => {
     const text = 'The quick brown fox jumps over the lazy dog';
     const rng = new PythonRandomProvider(123);
@@ -26,6 +42,11 @@ describe('Text Augmentation Functions', () => {
     expect(capitalized).toEqual(goldenCapitalized);
   });
 
+  /**
+   * FUNCTIONAL INTENT:
+   * Verifies that ASCII noising exactly matches the Python implementation's output for seed 42.
+   * This specifically tests parity for `isprintable()` behavior and char code manipulation.
+   */
   it('should add ASCII noise to the text deterministically', () => {
     // This text now includes a non-printable character (char code 128) to test
     // the implementation's divergence from Python's `isprintable()` behavior.
