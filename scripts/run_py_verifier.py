@@ -39,13 +39,13 @@ with open(log_path, 'w') as f:
 def log(message):
     """The global log function that writes to the Python trace file."""
     with open(log_path, 'a') as f:
-        f.write(message + '\\n')
+        f.write(message + '\n')
 
 # --- 3. Instrumented Functions (same as before) ---
 def instrumented_apply_word_scrambling(text, sigma):
-    log(f'applyWordScrambling INPUT: "{text}"')
-    words = text.split(' ')
-    log(f'applyWordScrambling words: {json.dumps(words)}')
+    # log(f'applyWordScrambling INPUT: "{text}"')
+    words = text.split()
+    # log(f'applyWordScrambling words: {json.dumps(words)}')
     scrambled_words = []
     for word in words:
         if len(word) > 3:
@@ -55,10 +55,10 @@ def instrumented_apply_word_scrambling(text, sigma):
             if should_scramble:
                 chars = list(word)
                 middle_chars = chars[1:-1]
-                log(f'applyWordScrambling middle_chars before shuffle: {json.dumps(middle_chars)}')
-                log(f'applyWordScrambling PRE_SHUFFLE_STATE: {json.dumps(random.getstate())}')
+                # log(f'applyWordScrambling middle_chars before shuffle: {json.dumps(middle_chars)}')
+                # log(f'applyWordScrambling PRE_SHUFFLE_STATE: {json.dumps(random.getstate())}')
                 random.shuffle(middle_chars)
-                log(f'applyWordScrambling POST_SHUFFLE_STATE: {json.dumps(random.getstate())}')
+                # log(f'applyWordScrambling POST_SHUFFLE_STATE: {json.dumps(random.getstate())}')
                 log(f'applyWordScrambling middle_chars after shuffle: {json.dumps(middle_chars)}')
                 scrambled_word = chars[0] + "".join(middle_chars) + chars[-1]
                 scrambled_words.append(scrambled_word)
@@ -114,7 +114,7 @@ def instrumented_apply_ascii_noising(text, sigma):
             else:
                 new_text.append(c)
         else:
-            log(f'applyAsciiNoising char: "{c}", char_code: {char_code}, is_printable: {is_printable}')
+            # log(f'applyAsciiNoising char: "{c}", char_code: {char_code}, is_printable: {is_printable}')
             new_text.append(c)
     result = "".join(new_text)
     log(f'applyAsciiNoising OUTPUT: "{result}"')
@@ -128,7 +128,7 @@ def instrumented_process_text_augmentation(*args, **kwargs):
     sys.modules['bon.attacks.run_text_bon'].apply_random_capitalization = instrumented_apply_random_capitalization
     sys.modules['bon.attacks.run_text_bon'].apply_ascii_noising = instrumented_apply_ascii_noising
 
-    log('processTextAugmentation START')
+    # log('processTextAugmentation START')
     result = original_process_text_augmentation(*args, **kwargs)
     log('processTextAugmentation END')
 
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         np_state_obj = get_deserialized_np_state(np_state_dict)
         np.random.set_state(np_state_obj)
 
-        log(f'processTextAugmentation rng created with seed: {seed}')
+        # log(f'processTextAugmentation rng created with seed: {seed}')
 
         # 4. Run the instrumented logic
         instrumented_process_text_augmentation(

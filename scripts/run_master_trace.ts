@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import { PythonRandomProvider } from '../src/utils/PythonRandomProvider.ts';
-import { processTextAugmentation } from '../app/lib/bon.ts';
+import { processTextAugmentation } from '../app/lib/bon_debug.ts';
 
 // --- 1. Configuration ---
 const SEED = 123;
@@ -64,26 +64,69 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
         NOISING
     ].join(' ');
 
-    const containerPath = path.resolve(process.cwd(), 'bon-jailbreaking');
-    let sourcePath = containerPath;
+    // Define candidates for the external library location
+    const candidates = [
+        path.resolve(process.cwd(), 'bon-jailbreaking-source'),    // Root - Likely Correct
+        path.resolve(process.cwd(), '../bon-jailbreaking-source'), // Sibling - Likely Correct
+        path.resolve(process.cwd(), 'bon-jailbreaking'),           // Original attempt
+        path.resolve(process.cwd(), '../bon-jailbreaking')         // Original sibling
+    ];
 
-    try {
-        // Find the actual source root (the hashed subdirectory)
-        const files = fs.readdirSync(containerPath);
-        const sourceRootName = files.find(f =>
-            fs.statSync(path.join(containerPath, f)).isDirectory() && !f.startsWith('.')
-        );
-
-        if (sourceRootName) {
-             sourcePath = path.join(containerPath, sourceRootName);
-        } else {
-             throw new Error(`Could not find source directory inside ${containerPath}`);
+    let containerPath = '';
+    for (const c of candidates) {
+        if (fs.existsSync(c)) {
+            // Check if directory is not empty
+            try {
+                if (fs.readdirSync(c).length > 0) {
+                    containerPath = c;
+                    break;
+                }
+            } catch (e) {
+                // Ignore errors reading directory (e.g. permission issues)
+            }
         }
-    } catch (e) {
-         console.warn(chalk.yellow('Warning: Could not resolve nested bon-jailbreaking directory, using base path.'));
     }
 
-    console.log(chalk.blue(`--- Corrected Python Source Path: ${sourcePath} ---`));
+    if (!containerPath) {
+        console.warn(chalk.yellow(`Warning: Could not locate 'bon-jailbreaking' in ${candidates.join(' or ')}`));
+        // Fallback to first candidate to avoid crashing before the try/catch
+        containerPath = candidates[0];
+    } else {
+        console.log(chalk.blue(`--- Found Library Container: ${containerPath} ---`));
+    }
+
+    let sourcePath = containerPath;
+
+    // Check Case A: Flat Structure (Git Clone) -> container/bon/__init__.py
+    const flatAnchor = path.join(containerPath, 'bon', '__init__.py');
+
+    if (fs.existsSync(flatAnchor)) {
+        console.log(chalk.blue(`[DEBUG] Found flat structure. PYTHONPATH anchor: ${containerPath}`));
+        sourcePath = containerPath;
+    } else {
+        // Check Case B: Nested Structure (Zip Hash) -> container/HASH/bon/__init__.py
+        let subdirs: string[] = [];
+        try {
+            subdirs = fs.readdirSync(containerPath).filter(f =>
+                fs.statSync(path.join(containerPath, f)).isDirectory() && !f.startsWith('.')
+            );
+        } catch (e) {
+            // ignore
+        }
+
+        const nestedDir = subdirs.find(dir =>
+            fs.existsSync(path.join(containerPath, dir, 'bon', '__init__.py'))
+        );
+
+        if (nestedDir) {
+            sourcePath = path.join(containerPath, nestedDir);
+            console.log(chalk.blue(`[DEBUG] Found nested structure. PYTHONPATH anchor: ${sourcePath}`));
+        } else {
+            console.warn(chalk.yellow(`Warning: Could not locate 'bon' package anchor in ${containerPath}. Trace may fail.`));
+        }
+    }
+
+    console.log(chalk.blue(`--- Final Python Source Path: ${sourcePath} ---`));
 
     try {
         execSync(command, {

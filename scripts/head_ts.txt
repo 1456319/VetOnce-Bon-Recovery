@@ -1,0 +1,50 @@
+applyWordScrambling middle_chars after shuffle: ["l", "l", "e"]
+applyWordScrambling scrambled_word: "Hlleo"
+applyWordScrambling middle_chars after shuffle: ["h", "i"]
+applyWordScrambling scrambled_word: "this"
+applyWordScrambling OUTPUT: "Hlleo world, this is a test."
+applyRandomCapitalization INPUT: "Hlleo world, this is a test."
+applyRandomCapitalization char: "H", rand_float: 0.87482574610526609, should_capitalize: False
+applyRandomCapitalization char: "l", rand_float: 0.37912433248908839, should_capitalize: True
+applyRandomCapitalization char: "l", rand_float: 0.56231871494798136, should_capitalize: True
+applyRandomCapitalization char: "e", rand_float: 0.34079822787707015, should_capitalize: True
+applyRandomCapitalization char: "o", rand_float: 0.05190165459858176, should_capitalize: True
+applyRandomCapitalization char: "w", rand_float: 0.13505745930386071, should_capitalize: True
+applyRandomCapitalization char: "o", rand_float: 0.56096200893667625, should_capitalize: True
+applyRandomCapitalization char: "r", rand_float: 0.70168978903564327, should_capitalize: False
+applyRandomCapitalization char: "l", rand_float: 0.16377684475236043, should_capitalize: True
+applyRandomCapitalization char: "d", rand_float: 0.90590556290951207, should_capitalize: False
+applyRandomCapitalization char: "t", rand_float: 0.77358798002908746, should_capitalize: False
+applyRandomCapitalization char: "h", rand_float: 0.87863033710121707, should_capitalize: False
+applyRandomCapitalization char: "i", rand_float: 0.37759477697221155, should_capitalize: True
+applyRandomCapitalization char: "s", rand_float: 0.00659504022791213, should_capitalize: True
+applyRandomCapitalization char: "i", rand_float: 0.73203925377370194, should_capitalize: False
+applyRandomCapitalization char: "s", rand_float: 0.10203672129957864, should_capitalize: True
+applyRandomCapitalization char: "a", rand_float: 0.04388745198223409, should_capitalize: True
+applyRandomCapitalization char: "t", rand_float: 0.66713816778492230, should_capitalize: False
+applyRandomCapitalization char: "e", rand_float: 0.12624969922059648, should_capitalize: True
+applyRandomCapitalization char: "s", rand_float: 0.90660797820416072, should_capitalize: False
+applyRandomCapitalization char: "t", rand_float: 0.29180151902996410, should_capitalize: True
+applyRandomCapitalization OUTPUT: "HLLEO WOrLd, thIS iS A tEsT."
+applyAsciiNoising INPUT: "HLLEO WOrLd, thIS iS A tEsT."
+applyAsciiNoising char: "H", char_code: 72, is_printable: True, rand_float_1: 0.43063758740878166, should_noise: False
+applyAsciiNoising char: "L", char_code: 76, is_printable: True, rand_float_1: 0.47692338574917392, should_noise: False
+applyAsciiNoising char: "L", char_code: 76, is_printable: True, rand_float_1: 0.46929267673073438, should_noise: False
+applyAsciiNoising char: "E", char_code: 69, is_printable: True, rand_float_1: 0.03674334115382094, should_noise: True
+applyAsciiNoising rand_float_2: 0.30509712802963074, perturbation: -1, new_char_code: 68
+applyAsciiNoising char: "O", char_code: 79, is_printable: True, rand_float_1: 0.52167025060576633, should_noise: False
+applyAsciiNoising char: " ", char_code: 32, is_printable: True, rand_float_1: 0.48296126132355977, should_noise: False
+applyAsciiNoising char: "W", char_code: 87, is_printable: True, rand_float_1: 0.82127212441639985, should_noise: False
+applyAsciiNoising char: "O", char_code: 79, is_printable: True, rand_float_1: 0.63875656222607902, should_noise: False
+applyAsciiNoising char: "r", char_code: 114, is_printable: True, rand_float_1: 0.56481403715415679, should_noise: False
+applyAsciiNoising char: "L", char_code: 76, is_printable: True, rand_float_1: 0.96056349810408914, should_noise: False
+applyAsciiNoising char: "d", char_code: 100, is_printable: True, rand_float_1: 0.01254809199451012, should_noise: True
+applyAsciiNoising rand_float_2: 0.89294130928277282, perturbation: 1, new_char_code: 101
+applyAsciiNoising char: ",", char_code: 44, is_printable: True, rand_float_1: 0.64615457141959765, should_noise: False
+applyAsciiNoising char: " ", char_code: 32, is_printable: True, rand_float_1: 0.43438667569188183, should_noise: False
+applyAsciiNoising char: "t", char_code: 116, is_printable: True, rand_float_1: 0.53851943193639262, should_noise: False
+applyAsciiNoising char: "h", char_code: 104, is_printable: True, rand_float_1: 0.79646755506588240, should_noise: False
+applyAsciiNoising char: "I", char_code: 73, is_printable: True, rand_float_1: 0.59650456078423975, should_noise: False
+applyAsciiNoising char: "S", char_code: 83, is_printable: True, rand_float_1: 0.83351077501577486, should_noise: False
+applyAsciiNoising char: " ", char_code: 32, is_printable: True, rand_float_1: 0.52060900381557806, should_noise: False
+applyAsciiNoising char: "i", char_code: 105, is_printable: True, rand_float_1: 0.41949624847264311, should_noise: False

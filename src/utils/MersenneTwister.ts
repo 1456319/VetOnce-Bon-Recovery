@@ -23,8 +23,6 @@ export class MersenneTwister {
 
     public MT: number[];
     public index: number;
-    private bit_buffer: bigint;
-    private bit_count: number;
 
     constructor() {
         this.w = 32;
@@ -45,8 +43,6 @@ export class MersenneTwister {
         this.index = this.n + 1;
         this.lower_mask = ((1 << this.r) - 1) >>> 0;
         this.upper_mask = (~this.lower_mask) >>> 0;
-        this.bit_buffer = 0n;
-        this.bit_count = 0;
     }
 
     public initState(state: number[], index: number): void {
@@ -98,23 +94,44 @@ export class MersenneTwister {
         return y >>> 0;
     }
 
+    /**
+     * Replicates Python's random.getrandbits(k).
+     * Python does NOT buffer bits between calls.
+     * It generates 32-bit words.
+     * If k < 32, it takes the MSBs of one word.
+     * If k > 32, it concatenates words (Little Endian for value construction).
+     */
     public getrandbits(k: number): bigint {
         if (k <= 0) {
             throw new Error("Number of bits must be greater than zero");
         }
 
-        if (this.bit_count < k) {
-            const needed = k - this.bit_count;
-            const words = Math.ceil(needed / 32);
-            for (let i = 0; i < words; i++) {
-                this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
-                this.bit_count += 32;
-            }
+        if (k <= 32) {
+            // Python behavior: genrand_int32() >> (32 - k)
+            // Consumes 1 full word, returns top k bits.
+            const word = this.extract_number();
+            return BigInt(word >>> (32 - k));
         }
 
-        const result = this.bit_buffer >> BigInt(this.bit_count - k);
-        this.bit_count -= k;
-        this.bit_buffer &= (1n << BigInt(this.bit_count)) - 1n;
+        // For k > 32
+        // Python generates words and assembles them.
+        // It seems to be Little Endian: result = word0 | (word1 << 32) | ...
+        let result = 0n;
+        let bits_collected = 0;
+
+        while (bits_collected < k) {
+            let r = BigInt(this.extract_number());
+
+            if (k - bits_collected < 32) {
+                // Last partial word
+                // Python: r >>= (32 - (k - bits_collected))
+                const bits_needed = k - bits_collected;
+                r = r >> BigInt(32 - bits_needed);
+            }
+
+            result = result | (r << BigInt(bits_collected));
+            bits_collected += 32;
+        }
 
         return result;
     }
