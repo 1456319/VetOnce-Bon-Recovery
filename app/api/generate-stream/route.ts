@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
             sendEvent('LOG_MESSAGE', { message });
         };
 
+        // Send initial configuration to the client
+        sendEvent('INITIAL_CONFIG', { total_steps: engineParams.n_steps });
+
         const engine = new BonEngine(engineParams, logger);
         const engineRunner = engine.run();
         engineInstances.set(sessionId, engineRunner);
