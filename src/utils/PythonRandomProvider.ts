@@ -92,7 +92,9 @@ export class PythonRandomProvider {
             return low;
         }
 
-        const k = (n - 1).toString(2).length;
+        // Python's random._randbelow uses n.bit_length() which is suboptimal for powers of 2
+        // but must be matched for reproduction.
+        const k = n.toString(2).length;
 
         let r = this.stdGenerator.getrandbits(k);
         while (r >= n) {
