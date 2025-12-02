@@ -4,7 +4,11 @@ import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
 
 // A simple class to hold the attack string
 export class AttackString {
-  constructor(public token_ids: number[]) {}
+  public token_ids: number[];
+
+  constructor(token_ids: number[]) {
+    this.token_ids = token_ids;
+  }
 
   decode(tokenizer: Tiktoken): string {
     return new TextDecoder().decode(tokenizer.decode(this.token_ids));

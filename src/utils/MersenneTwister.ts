@@ -1,9 +1,11 @@
 /*
-    A direct, line-by-line port of the Mersenne Twister implementation from:
-    https://github.com/yinengy/Mersenne-Twister-in-Python/blob/master/MT19937.py
-    with fixes for JavaScript's signed 32-bit integers.
-*/
+A direct, line-by-line port of the Mersenne Twister implementation from:
+https://github.com/yinengy/Mersenne-Twister-in-Python/blob/master/MT19937.py
+with fixes for JavaScript's signed 32-bit integers.
 
+REFACTOR NOTE: Buffer properties removed to ensure 1:1 parity with Python's
+'random' module, which discards unused bits between calls.
+*/
 export class MersenneTwister {
     private w: number;
     private n: number;
@@ -23,8 +25,8 @@ export class MersenneTwister {
 
     public MT: number[];
     public index: number;
-    private bit_buffer: bigint;
-    private bit_count: number;
+
+    // Removed bit_buffer and bit_count to enforce "fresh word" consumption
 
     constructor() {
         this.w = 32;
@@ -45,13 +47,38 @@ export class MersenneTwister {
         this.index = this.n + 1;
         this.lower_mask = ((1 << this.r) - 1) >>> 0;
         this.upper_mask = (~this.lower_mask) >>> 0;
-        this.bit_buffer = 0n;
-        this.bit_count = 0;
     }
 
     public initState(state: number[], index: number): void {
         this.MT = state;
         this.index = index;
+    }
+
+    public extract_number(): number {
+        if (this.index >= this.n) {
+            this.twist();
+        }
+
+        let y = this.MT[this.index];
+        y = (y ^ ((y >>> this.u) & this.d)) >>> 0;
+        y = (y ^ ((y << this.s) & this.b)) >>> 0;
+        y = (y ^ ((y << this.t) & this.c)) >>> 0;
+        y = (y ^ (y >>> this.l)) >>> 0;
+
+        this.index += 1;
+        return y >>> 0;
+    }
+
+    private twist(): void {
+        for (let i = 0; i < this.n; i++) {
+            const x = ((this.MT[i] & this.upper_mask) + (this.MT[(i + 1) % this.n] & this.lower_mask)) >>> 0;
+            let xA = x >>> 1;
+            if ((x % 2) !== 0) {
+                xA = (xA ^ this.a) >>> 0;
+            }
+            this.MT[i] = (this.MT[(i + this.m) % this.n] ^ xA) >>> 0;
+        }
+        this.index = 0;
     }
 
     /**
@@ -71,50 +98,44 @@ export class MersenneTwister {
         return (a * 67108864.0 + b) * (1.0 / 9007199254740992.0);
     }
 
-    private twist(): void {
-        for (let i = 0; i < this.n; i++) {
-            const x = ((this.MT[i] & this.upper_mask) + (this.MT[(i + 1) % this.n] & this.lower_mask)) >>> 0;
-            let xA = x >>> 1;
-            if ((x % 2) !== 0) {
-                xA = (xA ^ this.a) >>> 0;
-            }
-            this.MT[i] = (this.MT[(i + this.m) % this.n] ^ xA) >>> 0;
-        }
-        this.index = 0;
-    }
-
-    public extract_number(): number {
-        if (this.index >= this.n) {
-            this.twist();
-        }
-
-        let y = this.MT[this.index];
-        y = (y ^ ((y >>> this.u) & this.d)) >>> 0;
-        y = (y ^ ((y << this.s) & this.b)) >>> 0;
-        y = (y ^ ((y << this.t) & this.c)) >>> 0;
-        y = (y ^ (y >>> this.l)) >>> 0;
-
-        this.index += 1;
-        return y >>> 0;
-    }
-
+    /**
+     * Replicates Python's random.getrandbits(k).
+     * Python does NOT buffer bits between calls.
+     * It generates 32-bit words.
+     * If k < 32, it takes the MSBs of one word.
+     * If k > 32, it concatenates words (Little Endian for value construction).
+     */
     public getrandbits(k: number): bigint {
         if (k <= 0) {
             throw new Error("Number of bits must be greater than zero");
         }
 
-        if (this.bit_count < k) {
-            const needed = k - this.bit_count;
-            const words = Math.ceil(needed / 32);
-            for (let i = 0; i < words; i++) {
-                this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
-                this.bit_count += 32;
-            }
+        if (k <= 32) {
+            // Python behavior: genrand_int32() >> (32 - k)
+            // Consumes 1 full word, returns top k bits.
+            const word = this.extract_number();
+            return BigInt(word >>> (32 - k));
         }
 
-        const result = this.bit_buffer >> BigInt(this.bit_count - k);
-        this.bit_count -= k;
-        this.bit_buffer &= (1n << BigInt(this.bit_count)) - 1n;
+        // For k > 32
+        // Python generates words and assembles them.
+        // It seems to be Little Endian: result = word0 | (word1 << 32) | ...
+        let result = 0n;
+        let bits_collected = 0;
+
+        while (bits_collected < k) {
+            let r = BigInt(this.extract_number());
+
+            if (k - bits_collected < 32) {
+                // Last partial word
+                // Python: r >>= (32 - (k - bits_collected))
+                const bits_needed = k - bits_collected;
+                r = r >> BigInt(32 - bits_needed);
+            }
+
+            result = result | (r << BigInt(bits_collected));
+            bits_collected += 32;
+        }
 
         return result;
     }
