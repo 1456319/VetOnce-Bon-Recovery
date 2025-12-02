@@ -1,9 +1,11 @@
 import { LMStudioClient } from '@lmstudio/sdk';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
-    const client = new LMStudioClient();
+    const client = new LMStudioClient({ baseUrl: 'ws://localhost:1234' });
     const models = await client.system.listDownloadedModels();
     return NextResponse.json(models);
   } catch (error) {

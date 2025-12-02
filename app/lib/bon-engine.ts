@@ -271,9 +271,22 @@ export class BonEngine {
       }
 
       // 5. Check for early exit condition (but not in trace mode).
-      if (this.best_asr_global >= this.params.asr_threshold && !this.logger) {
-        this.logger?.('BonEngine.run: ASR threshold reached, breaking loop.');
-        break;
+      // Note: this.params.asr_threshold is a number, so checking it is truthy is fine for >0.
+      // If we are logging, we generally want to run all steps to see the trace.
+      // But if we are running for real, we want to stop if we find a jailbreak.
+      // However, the condition `!this.logger` implies "not tracing".
+      // But `this.logger` is undefined if not passed.
+      // The issue is TS thinks `this.logger` is never because we checked `!this.logger`?
+      // No, `this.logger` is Logger | undefined.
+      // If `!this.logger` is true, then `this.logger` is undefined.
+      // So `this.logger?.(...)` is trying to call undefined.
+
+      if (this.params.asr_threshold && this.best_asr_global >= this.params.asr_threshold) {
+         if (!this.logger) {
+             break;
+         } else {
+             this.logger('BonEngine.run: ASR threshold reached, but continuing for trace.');
+         }
       }
     }
 
