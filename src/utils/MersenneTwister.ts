@@ -23,6 +23,8 @@ export class MersenneTwister {
 
     public MT: number[];
     public index: number;
+
+    // Kept for structure compatibility, but unused for buffering in Python mode
     private bit_buffer: bigint;
     private bit_count: number;
 
@@ -103,18 +105,21 @@ export class MersenneTwister {
             throw new Error("Number of bits must be greater than zero");
         }
 
-        if (this.bit_count < k) {
-            const needed = k - this.bit_count;
-            const words = Math.ceil(needed / 32);
-            for (let i = 0; i < words; i++) {
-                this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
-                this.bit_count += 32;
-            }
+        // Reset buffer to simulate Python's no-buffering behavior.
+        // Python's getrandbits generates fresh words every time and discards unused bits.
+        this.bit_buffer = 0n;
+        this.bit_count = 0;
+
+        while (this.bit_count < k) {
+            this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
+            this.bit_count += 32;
         }
 
         const result = this.bit_buffer >> BigInt(this.bit_count - k);
-        this.bit_count -= k;
-        this.bit_buffer &= (1n << BigInt(this.bit_count)) - 1n;
+
+        // Clear buffer after use to ensure no state persistence
+        this.bit_buffer = 0n;
+        this.bit_count = 0;
 
         return result;
     }

@@ -92,7 +92,8 @@ export class PythonRandomProvider {
             return low;
         }
 
-        const k = (n - 1).toString(2).length;
+        // Python's bit_length() for n is n.toString(2).length
+        const k = n.toString(2).length;
 
         let r = this.stdGenerator.getrandbits(k);
         while (r >= n) {
