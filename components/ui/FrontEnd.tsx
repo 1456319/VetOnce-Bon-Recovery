@@ -7,6 +7,101 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, Server, Monitor, Cpu, Activity, CheckCircle2, AlertCircle, Play, Pause, Zap } from 'lucide-react';
 
+// --- HELPERS ---
+
+function deriveBaseUrl(url: string): string {
+    try {
+        const urlObj = new URL(url);
+        // Simple heuristic: go up two levels if it ends in chat/completions
+        if (urlObj.pathname.endsWith('/chat/completions')) {
+            return url.replace(/\/chat\/completions\/?$/, '/models');
+        } else if (urlObj.pathname.endsWith('/completions')) {
+            return url.replace(/\/completions\/?$/, '/models');
+        } else {
+            // Fallback or assume root
+            return `${urlObj.origin}/v1/models`;
+        }
+    } catch (e) {
+        return url; // Fallback
+    }
+}
+
+async function fetchWithWatchdog(
+    url: string,
+    options: RequestInit,
+    checkUrl: string,
+    onSlow: () => void
+): Promise<Response> {
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // Create a new signal that aborts if either the user controller aborts OR the passed signal aborts
+    // Note: If 'options.signal' is present, we should respect it.
+    // Since AbortSignal.any() is relatively new (2024), we can implement a fallback or just assume modern environment.
+    // Given the project uses Next.js and recent Node, it might be available.
+    // However, to be safe and simple without polyfills:
+    if (options.signal) {
+        options.signal.addEventListener('abort', () => controller.abort(options.signal?.reason));
+    }
+
+    let isDone = false;
+    const SOFT_TIMEOUT = 45000; // 45s soft timeout
+    const CHECK_INTERVAL = 10000; // 10s check interval
+
+    // Start the main fetch
+    const fetchPromise = fetch(url, { ...options, signal });
+
+    // Watchdog
+    const watchdog = async () => {
+        await new Promise(resolve => setTimeout(resolve, SOFT_TIMEOUT));
+
+        while (!isDone) {
+            onSlow(); // Notify UI that it's taking long
+            console.log(`[Watchdog] Request to ${url} is slow. Checking health at ${checkUrl}...`);
+
+            try {
+                // Short timeout for the health check itself
+                const healthController = new AbortController();
+                const healthTimeout = setTimeout(() => healthController.abort(), 5000);
+
+                const healthRes = await fetch(checkUrl, {
+                    method: 'GET',
+                    signal: healthController.signal
+                });
+
+                clearTimeout(healthTimeout);
+
+                if (healthRes.ok) {
+                    console.log("[Watchdog] Server is healthy. Continuing to wait...");
+                } else {
+                    console.warn(`[Watchdog] Health check returned status ${healthRes.status}. Aborting main request.`);
+                    controller.abort();
+                    return;
+                }
+            } catch (e: any) {
+                console.warn(`[Watchdog] Health check failed: ${e.message}. Aborting main request.`);
+                controller.abort();
+                return;
+            }
+
+            // Wait before next check
+            await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
+        }
+    };
+
+    // Start watchdog without awaiting it
+    watchdog();
+
+    try {
+        const response = await fetchPromise;
+        isDone = true;
+        return response;
+    } catch (error) {
+        isDone = true;
+        throw error;
+    }
+}
+
 // --- COMPONENTS ---
 
 const StepProgress = ({ current, total, bestAsr }: { current: number; total: number; bestAsr: number | null }) => {
@@ -141,6 +236,7 @@ const FrontEnd = () => {
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected' | 'checking'>('unknown');
   const [pipelineState, setPipelineState] = useState<PipelineState>('idle');
   const [tps, setTps] = useState<string>('0.0');
+  const [isServerBusy, setServerBusy] = useState<boolean>(false);
 
   // --- API INTERACTION ---
 
@@ -148,24 +244,7 @@ const FrontEnd = () => {
   const checkConnection = async (url: string) => {
       setConnectionStatus('checking');
       try {
-          // Construct base URL from completions URL (remove /chat/completions or similar)
-          // Assumption: user inputs http://localhost:1234/v1/chat/completions
-          // We want http://localhost:1234/v1/models
-          let baseUrl = url;
-          try {
-             const urlObj = new URL(url);
-             // Simple heuristic: go up two levels if it ends in chat/completions
-             if (urlObj.pathname.endsWith('/chat/completions')) {
-                 baseUrl = url.replace(/\/chat\/completions\/?$/, '/models');
-             } else if (urlObj.pathname.endsWith('/completions')) {
-                 baseUrl = url.replace(/\/completions\/?$/, '/models');
-             } else {
-                 // Fallback or assume root
-                 baseUrl = `${urlObj.origin}/v1/models`;
-             }
-          } catch (e) {
-              // invalid url, ignore
-          }
+          const baseUrl = deriveBaseUrl(url);
 
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout for check
@@ -314,20 +393,21 @@ const FrontEnd = () => {
                   setPipelineState('gpu-inference');
                   const start = performance.now();
                   try {
-                      // Add timeout
-                      const controller = new AbortController();
-                      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+                      const checkUrl = deriveBaseUrl(lmStudioUrl);
 
-                      const res = await fetch(lmStudioUrl, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                              model: selectedModel,
-                              messages: req.prompt,
-                          }),
-                          signal: controller.signal
-                      });
-                      clearTimeout(timeoutId);
+                      const res = await fetchWithWatchdog(
+                          lmStudioUrl,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                model: selectedModel,
+                                messages: req.prompt,
+                            }),
+                          },
+                          checkUrl,
+                          () => setServerBusy(true)
+                      );
 
                       if (!res.ok) throw new Error(`LM Studio responded with status: ${res.status}`);
                       const llmResponse = await res.json();
@@ -348,6 +428,7 @@ const FrontEnd = () => {
               })
           );
 
+          setServerBusy(false);
           setPipelineState('submitting-results');
           const submitResponse = await fetch('/api/submit-completions', {
               method: 'POST',
@@ -396,7 +477,7 @@ const FrontEnd = () => {
           <main className="flex-1 relative">
             <section className="container mx-auto mb-5 mt-10">
               <div className="flex items-center justify-center">
-                <div className="w-2/3">
+                <div className="w-full max-w-4xl px-4">
                   <h1 className="text-3xl font-bold mb-4">Best-of-N Jailbreaking Prompt Generator</h1>
 
                   {/* Steering Wheel */}
@@ -418,9 +499,9 @@ const FrontEnd = () => {
 
             <section className="container mx-auto min-h-[25vh] mb-5">
               <div className="flex items-center justify-center">
-                <div className="w-2/3">
+                <div className="w-full max-w-4xl px-4">
                   <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="model-select">Select Model</Label>
                             <Select onValueChange={setSelectedModel} value={selectedModel} disabled={isLoading}>
@@ -439,7 +520,10 @@ const FrontEnd = () => {
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="lm-studio-url">LM Studio URL</Label>
-                                <ConnectionStatus status={connectionStatus} onCheck={() => checkConnection(lmStudioUrl)} />
+                                <div className="flex items-center gap-2">
+                                    {isServerBusy && <span className="text-xs font-bold text-yellow-500 animate-pulse">Large Generation...</span>}
+                                    <ConnectionStatus status={connectionStatus} onCheck={() => checkConnection(lmStudioUrl)} />
+                                </div>
                             </div>
                             <Input
                                 id="lm-studio-url"
@@ -463,8 +547,8 @@ const FrontEnd = () => {
                       />
                     </div>
 
-                    <div className="flex flex-row space-x-6 justify-between items-center">
-                        <div className="flex flex-row space-x-4">
+                    <div className="flex flex-col md:flex-row gap-4 md:space-x-6 justify-between items-center">
+                        <div className="flex flex-row flex-wrap gap-4">
                             <div className="flex flex-row items-start space-x-3 space-y-0">
                                 <Checkbox
                                 id="change-case"
@@ -517,9 +601,9 @@ const FrontEnd = () => {
               </div>
             </section>
             <section className="container mx-auto mb-5 mt-14 flex-1">
-                <div className="flex justify-center space-x-4">
+                <div className="flex flex-col md:flex-row justify-center gap-6 px-4 max-w-6xl mx-auto">
                     {/* Output Panel */}
-                    <div className="w-1/3">
+                    <div className="w-full md:w-1/2">
                         <Label>Output</Label>
                         <div data-testid="output-panel" className="min-h-24 rounded-md border border-slate-300 p-3 text-sm overflow-y-auto h-64 bg-background">
                             {output || <span className="text-muted-foreground italic">Results will appear here...</span>}
@@ -527,7 +611,7 @@ const FrontEnd = () => {
                     </div>
 
                     {/* Log Stream Panel */}
-                    <div className="w-1/3">
+                    <div className="w-full md:w-1/2">
                         <div className="flex justify-between items-center mb-1">
                             <Label>Log Stream</Label>
                             {isLoading && <span className="text-xs font-mono text-green-500">Speed: {tps} T/s</span>}
@@ -551,7 +635,7 @@ const FrontEnd = () => {
           </footer>
   
           {/* Error Log Panel */}
-          <div className={`fixed top-0 right-0 h-full bg-slate-900 text-white p-4 transition-transform transform ${isLogVisible ? 'translateX(0)' : 'translate-x-full'} w-1/3 shadow-2xl z-50`}>
+          <div className={`fixed top-0 right-0 h-full bg-slate-900 text-white p-4 transition-transform transform ${isLogVisible ? 'translateX(0)' : 'translate-x-full'} w-full md:w-1/3 shadow-2xl z-50`}>
             <button onClick={() => setIsLogVisible(false)} className="absolute top-4 right-4 text-white hover:text-red-400">
                 <ArrowRight className="rotate-180" />
             </button>
