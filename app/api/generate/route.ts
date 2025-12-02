@@ -66,7 +66,7 @@ const ExperimentConfigSchema = z.object({
   asr_threshold: z.number().optional(),
 });
 
-async function getLocalAsr(completion: string, behavior: string, logger?: Logger): Promise<number> {
+export async function getLocalAsr(completion: string, behavior: string, logger?: Logger): Promise<number> {
     logger?.(`getLocalAsr: START`);
     const word_diff = completion.split(' ').length - behavior.split(' ').length;
     if (word_diff < 9) {

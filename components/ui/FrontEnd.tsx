@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const FrontEnd = () => {
@@ -14,9 +15,11 @@ const FrontEnd = () => {
   const [output, setOutput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorLog, setErrorLog] = useState<string[]>([]);
+  const [logStream, setLogStream] = useState<string[]>([]);
   const [isLogVisible, setIsLogVisible] = useState<boolean>(false);
   const [models, setModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const [lmStudioUrl, setLmStudioUrl] = useState<string>('http://localhost:1234/v1/chat/completions');
 
   // --- API INTERACTION ---
 
@@ -48,6 +51,8 @@ const FrontEnd = () => {
   async function handleGenerate() {
     setIsLoading(true);
     setOutput("");
+    setErrorLog([]);
+    setLogStream([]);
 
     const payload = {
       harmful_text: prompt,
@@ -59,27 +64,116 @@ const FrontEnd = () => {
       }
     };
 
+    const sessionId = crypto.randomUUID();
+
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/generate-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': sessionId,
+        },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        throw new Error(`API responded with status: ${res.status}`);
+      if (!response.body) {
+        throw new Error("Response body is null.");
       }
 
-      const json = await res.json();
-      setOutput(json?.best_prompt ?? "No output received from server.");
+      await processStream(response.body, sessionId);
+
     } catch (error: any) {
-      console.error("Failed to generate prompt:", error);
-      const errorMessage = error.message || "An unknown error occurred.";
-      setOutput(`An error occurred: ${errorMessage}. Check the error log for details.`);
-      setErrorLog(prevLog => [...prevLog, errorMessage]);
+      console.error("Error during generation:", error);
+      setErrorLog(prev => [...prev, `Error: ${error.message}`]);
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function processStream(stream: ReadableStream<Uint8Array>, sessionId: string) {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          const eventName = line.substring(7);
+          const dataLine = lines.shift()?.substring(6);
+          if (dataLine) {
+            const data = JSON.parse(dataLine);
+            await handleServerEvent(eventName, data, sessionId);
+          }
+        }
+      }
+    }
+  }
+
+  async function handleServerEvent(eventName: string, data: any, sessionId: string) {
+      switch (eventName) {
+        case 'GET_COMPLETIONS_PARALLEL':
+          console.log('Received GET_COMPLETIONS_PARALLEL:', data);
+          const completions = await Promise.all(
+              data.requests.map(async (req: any) => {
+                  try {
+                      const res = await fetch(lmStudioUrl, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              model: selectedModel,
+                              messages: req.prompt,
+                          }),
+                      });
+                      if (!res.ok) throw new Error(`LM Studio responded with status: ${res.status}`);
+                      const llmResponse = await res.json();
+                      return { completion: llmResponse.choices[0].message.content, stop_reason: 'stop' };
+                  } catch (error: any) {
+                      setErrorLog(prev => [...prev, `LLM Request Failed: ${error.message}`]);
+                      return { completion: `Error: ${error.message}`, stop_reason: 'error' };
+                  }
+              })
+          );
+
+          const submitResponse = await fetch('/api/submit-completions', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'x-session-id': sessionId,
+              },
+              body: JSON.stringify({ results: completions }),
+          });
+
+          if (!submitResponse.body) throw new Error("Submit completions response body is null.");
+          await processStream(submitResponse.body, sessionId); // Process the new stream
+          break;
+
+        case 'LOG_MESSAGE':
+          console.log('Log:', data.message);
+          setLogStream(prev => [...prev, data.message]);
+          break;
+
+        case 'ANALYSIS_RESULT':
+          console.log('Received ANALYSIS_RESULT:', data);
+          setOutput(data.payload.best_prompt);
+          break;
+
+        case 'ENGINE_COMPLETE':
+            console.log('Received ENGINE_COMPLETE:', data);
+            setOutput(data.payload.best_prompt);
+            break;
+
+        case 'ERROR':
+          console.error('Server Error:', data.message);
+          setErrorLog(prev => [...prev, `Server Error: ${data.message}`]);
+          break;
+      }
   }
 
     try {
@@ -118,6 +212,16 @@ const FrontEnd = () => {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="lm-studio-url">LM Studio URL</Label>
+                        <Input
+                            id="lm-studio-url"
+                            value={lmStudioUrl}
+                            onChange={(e) => setLmStudioUrl(e.target.value)}
+                            placeholder="http://localhost:1234/v1/chat/completions"
+                            disabled={isLoading}
+                        />
                     </div>
                     <div className="space-y-2">
                       <Textarea
@@ -175,14 +279,25 @@ const FrontEnd = () => {
               </div>
             </section>
             <section className="container mx-auto mb-5 mt-14 flex-1">
-              <div className="flex items-center justify-center">
-                <div className="w-2/3">
-                  <div className="flex flex-col space-y-4">
-                    <Label>Output</Label>
-                    <div className="min-h-24 rounded-md border border-slate-300 p-3 text-sm">{output || "—"}</div>
-                  </div>
+                <div className="flex justify-center space-x-4">
+                    {/* Output Panel */}
+                    <div className="w-1/3">
+                        <Label>Output</Label>
+                        <div data-testid="output-panel" className="min-h-24 rounded-md border border-slate-300 p-3 text-sm overflow-y-auto h-64">
+                            {output || "—"}
+                        </div>
+                    </div>
+
+                    {/* Log Stream Panel */}
+                    <div className="w-1/3">
+                        <Label>Log Stream</Label>
+                        <div className="min-h-24 rounded-md border border-slate-300 p-3 text-sm bg-gray-900 text-green-400 font-mono overflow-y-auto h-64">
+                            {logStream.map((log, index) => (
+                                <div key={index}>{`> ${log}`}</div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-              </div>
             </section>
           </main>
           <footer className="py-4 shadow-md backdrop-blur-xl mt-12">
