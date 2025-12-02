@@ -1,0 +1,27 @@
+
+ RUN  v3.2.4 /home/deck/VetOnce-Bon-Recovery
+
+stdout | app/__tests__/bon.test.ts > Text Augmentation Functions > applyWordScrambling > should scramble the middle of words longer than 3 characters deterministically
+scrambled: The qiuck brown fox jpums over the lazy dog
+
+ ✓ src/utils/PythonRandomProvider.test.ts (2 tests) 451ms
+stdout | app/__tests__/bon.test.ts > Text Augmentation Functions > applyRandomCapitalization > should randomly capitalize and decapitalize letters deterministically
+capitalized: tHE QUICK BROWN FOX JUMPS OVER THE LAZY DOG
+
+stdout | app/__tests__/bon.test.ts > Text Augmentation Functions > applyAsciiNoising > should add ASCII noise to the text deterministically
+noised: Sif rvhdj cspxo epy!kvnqr!nwfs!uid!kb{x epf
+
+ ❯ app/__tests__/bon.test.ts (3 tests | 2 failed) 825ms
+   ✓ Text Augmentation Functions > applyWordScrambling > should scramble the middle of words longer than 3 characters deterministically 249ms
+   × Text Augmentation Functions > applyRandomCapitalization > should randomly capitalize and decapitalize letters deterministically 328ms
+     → expected 'tHE QUICK BROWN FOX JUMPS OVER THE LA…' to deeply equal 'PLACEHOLDER'
+   × Text Augmentation Functions > applyAsciiNoising > should add ASCII noise to the text deterministically 246ms
+     → expected 'Sif rvhdj cspxo epy!kvnqr!nwfs!uid!kb…' to deeply equal 'PLACEHOLDER'
+ ✓ app/__tests__/api.test.ts (2 tests) 4443ms
+   ✓ API Route: /api/generate > should process a valid request and return the best augmented prompt  4439ms
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  2 failed | 5 passed (7)
+   Start at  18:34:30
+   Duration  6.01s (transform 190ms, setup 0ms, collect 522ms, tests 5.72s, environment 2.30s, prepare 365ms)
+

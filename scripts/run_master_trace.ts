@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import { PythonRandomProvider } from '../src/utils/PythonRandomProvider.ts';
-import { processTextAugmentation } from '../app/lib/bon.ts';
+import { processTextAugmentation } from '../app/lib/bon_debug.ts';
 
 // --- 1. Configuration ---
 const SEED = 123;
@@ -38,7 +38,7 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
     const npStateJsonString = JSON.stringify(rngProvider.np_state_json).replace(/"/g, '\\"');
 
     const command = [
-        'python3',
+        '.venv/bin/python',
         PY_VERIFIER_SCRIPT,
         `'${rngProvider.std_state_b64}'`,
         `"${npStateJsonString}"`,

@@ -39,7 +39,7 @@ export class PythonRandomProvider {
         }
 
         // 1. Call the refactored Python script to get all states
-        const command = `python3 scripts/get_all_seed_states.py ${seed}`;
+        const command = `./.venv/bin/python scripts/get_all_seed_states.py ${seed}`;
         let statesJson: string;
         try {
             statesJson = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });
@@ -92,7 +92,9 @@ export class PythonRandomProvider {
             return low;
         }
 
-        const k = (n - 1).toString(2).length;
+        // Python's random._randbelow uses n.bit_length() which is suboptimal for powers of 2
+        // but must be matched for reproduction.
+        const k = n.toString(2).length;
 
         let r = this.stdGenerator.getrandbits(k);
         while (r >= n) {
