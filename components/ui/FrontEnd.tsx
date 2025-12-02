@@ -211,6 +211,77 @@ const FrontEnd = () => {
   }, []);
 
   /**
+   * Helper to fetch with an intelligent watchdog.
+   * If the request takes too long, it pings the server to see if it's still alive.
+   * Only aborts if the server check fails.
+   */
+  async function fetchWithWatchdog(url: string, options: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const signal = options.signal ? options.signal : controller.signal; // Use provided signal or internal one
+
+    // If the user provided a signal, we can't easily merge them without a helper,
+    // but for now we'll assume we control the signal for this specific logic.
+    // Ideally we'd use AbortSignal.any() but that's new.
+    // For this specific use case, we are replacing the internal timeout controller.
+
+    let isDone = false;
+    const fetchPromise = fetch(url, { ...options, signal: controller.signal });
+
+    const SOFT_TIMEOUT = 45000; // 45s soft timeout
+    const CHECK_INTERVAL = 10000; // 10s check interval
+
+    const watchdog = async () => {
+        await new Promise(r => setTimeout(r, SOFT_TIMEOUT));
+
+        while (!isDone) {
+            console.log("Request taking long, checking server health...");
+            setLogStream(prev => [...prev, "WARN: Generation slow. Checking server health..."]);
+
+            try {
+                 // Construct health URL similar to checkConnection
+                 let healthUrl = url;
+                 try {
+                    const urlObj = new URL(url);
+                    if (urlObj.pathname.endsWith('/chat/completions')) {
+                        healthUrl = url.replace(/\/chat\/completions\/?$/, '/models');
+                    } else if (urlObj.pathname.endsWith('/completions')) {
+                        healthUrl = url.replace(/\/completions\/?$/, '/models');
+                    } else {
+                        healthUrl = `${urlObj.origin}/v1/models`;
+                    }
+                 } catch (e) {}
+
+                 const healthRes = await fetch(healthUrl, { method: 'GET', signal: AbortSignal.timeout(5000) });
+                 if (healthRes.ok) {
+                     console.log("Server is healthy. Extending wait.");
+                     setLogStream(prev => [...prev, "INFO: Server is alive. Continuing to wait..."]);
+                 } else {
+                     throw new Error("Health check failed");
+                 }
+            } catch (e) {
+                console.warn("Health check failed. Aborting request.");
+                setLogStream(prev => [...prev, "ERROR: Server unresponsive. Aborting."]);
+                controller.abort();
+                return;
+            }
+
+            await new Promise(r => setTimeout(r, CHECK_INTERVAL));
+        }
+    };
+
+    watchdog(); // Run in background
+
+    try {
+        const res = await fetchPromise;
+        isDone = true;
+        return res;
+    } catch (e) {
+        isDone = true;
+        throw e;
+    }
+  }
+
+  /**
    * Handles the "Generate" button click.
    */
   async function handleGenerate() {
@@ -314,20 +385,15 @@ const FrontEnd = () => {
                   setPipelineState('gpu-inference');
                   const start = performance.now();
                   try {
-                      // Add timeout
-                      const controller = new AbortController();
-                      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-
-                      const res = await fetch(lmStudioUrl, {
+                      // Use fetchWithWatchdog instead of hard timeout
+                      const res = await fetchWithWatchdog(lmStudioUrl, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                               model: selectedModel,
                               messages: req.prompt,
-                          }),
-                          signal: controller.signal
+                          })
                       });
-                      clearTimeout(timeoutId);
 
                       if (!res.ok) throw new Error(`LM Studio responded with status: ${res.status}`);
                       const llmResponse = await res.json();
@@ -394,9 +460,9 @@ const FrontEnd = () => {
       return (
         <div className="flex flex-col min-h-screen">
           <main className="flex-1 relative">
-            <section className="container mx-auto mb-5 mt-10">
+            <section className="container mx-auto mb-5 mt-10 px-4">
               <div className="flex items-center justify-center">
-                <div className="w-2/3">
+                <div className="w-full md:w-2/3 lg:w-1/2">
                   <h1 className="text-3xl font-bold mb-4">Best-of-N Jailbreaking Prompt Generator</h1>
 
                   {/* Steering Wheel */}
@@ -416,11 +482,11 @@ const FrontEnd = () => {
               </div>
             </section>
 
-            <section className="container mx-auto min-h-[25vh] mb-5">
+            <section className="container mx-auto min-h-[25vh] mb-5 px-4">
               <div className="flex items-center justify-center">
-                <div className="w-2/3">
+                <div className="w-full md:w-2/3 lg:w-1/2">
                   <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="model-select">Select Model</Label>
                             <Select onValueChange={setSelectedModel} value={selectedModel} disabled={isLoading}>
@@ -463,44 +529,38 @@ const FrontEnd = () => {
                       />
                     </div>
 
-                    <div className="flex flex-row space-x-6 justify-between items-center">
-                        <div className="flex flex-row space-x-4">
-                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                    <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-6 justify-between items-center">
+                        <div className="flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0 w-full md:w-auto">
+                            <div className="flex flex-row items-center space-x-3">
                                 <Checkbox
                                 id="change-case"
                                 checked={changeCase}
                                 onCheckedChange={(checked) => setChangeCase(Boolean(checked))}
                                 disabled={isLoading}
                                 />
-                                <div className="space-y-1 leading-none">
                                 <Label htmlFor="change-case">Change case</Label>
-                                </div>
                             </div>
-                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                            <div className="flex flex-row items-center space-x-3">
                                 <Checkbox
                                 id="shuffle-letters"
                                 checked={shuffleLetters}
                                 onCheckedChange={(checked) => setShuffleLetters(Boolean(checked))}
                                 disabled={isLoading}
                                 />
-                                <div className="space-y-1 leading-none">
                                 <Label htmlFor="shuffle-letters">Shuffle letters</Label>
-                                </div>
                             </div>
-                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                            <div className="flex flex-row items-center space-x-3">
                                 <Checkbox
                                 id="replace-letters"
                                 checked={replaceLetters}
                                 onCheckedChange={(checked) => setReplaceLetters(Boolean(checked))}
                                 disabled={isLoading}
                                 />
-                                <div className="space-y-1 leading-none">
                                 <Label htmlFor="replace-letters">Replace letters</Label>
-                                </div>
                             </div>
                         </div>
 
-                        <Button onClick={handleGenerate} disabled={isLoading || connectionStatus !== 'connected'} className="font-bold min-w-[120px]">
+                        <Button onClick={handleGenerate} disabled={isLoading || connectionStatus !== 'connected'} className="font-bold w-full md:w-auto min-w-[120px]">
                             {isLoading ? (
                                 <span className="flex items-center gap-2">
                                     <Activity className="animate-spin h-4 w-4" /> Generating
@@ -516,10 +576,10 @@ const FrontEnd = () => {
                 </div>
               </div>
             </section>
-            <section className="container mx-auto mb-5 mt-14 flex-1">
-                <div className="flex justify-center space-x-4">
+            <section className="container mx-auto mb-5 mt-14 flex-1 px-4">
+                <div className="flex flex-col md:flex-row justify-center gap-4">
                     {/* Output Panel */}
-                    <div className="w-1/3">
+                    <div className="w-full md:w-1/3">
                         <Label>Output</Label>
                         <div data-testid="output-panel" className="min-h-24 rounded-md border border-slate-300 p-3 text-sm overflow-y-auto h-64 bg-background">
                             {output || <span className="text-muted-foreground italic">Results will appear here...</span>}
@@ -527,7 +587,7 @@ const FrontEnd = () => {
                     </div>
 
                     {/* Log Stream Panel */}
-                    <div className="w-1/3">
+                    <div className="w-full md:w-1/3">
                         <div className="flex justify-between items-center mb-1">
                             <Label>Log Stream</Label>
                             {isLoading && <span className="text-xs font-mono text-green-500">Speed: {tps} T/s</span>}
@@ -551,7 +611,7 @@ const FrontEnd = () => {
           </footer>
   
           {/* Error Log Panel */}
-          <div className={`fixed top-0 right-0 h-full bg-slate-900 text-white p-4 transition-transform transform ${isLogVisible ? 'translateX(0)' : 'translate-x-full'} w-1/3 shadow-2xl z-50`}>
+          <div className={`fixed top-0 right-0 h-full bg-slate-900 text-white p-4 transition-transform transform ${isLogVisible ? 'translateX(0)' : 'translate-x-full'} w-full md:w-1/3 shadow-2xl z-50`}>
             <button onClick={() => setIsLogVisible(false)} className="absolute top-4 right-4 text-white hover:text-red-400">
                 <ArrowRight className="rotate-180" />
             </button>

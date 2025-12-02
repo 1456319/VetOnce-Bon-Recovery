@@ -1,5 +1,5 @@
 import { Tiktoken } from 'tiktoken/lite';
-import getEncoding from 'tiktoken';
+import { get_encoding } from 'tiktoken';
 import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
 
 // A simple class to hold the attack string
@@ -11,7 +11,7 @@ export class AttackString {
   }
 
   decode(tokenizer: Tiktoken): string {
-    return new TextDecoder().decode(tokenizer.decode(this.token_ids));
+    return new TextDecoder().decode(tokenizer.decode(new Uint32Array(this.token_ids)));
   }
 
   getNormalisedString(tokenizer: Tiktoken): string {
@@ -23,27 +23,35 @@ export class AttackString {
 let tokenizer: Tiktoken | null = null;
 export function getTokenizer(): Tiktoken {
   if (!tokenizer) {
-    tokenizer = getEncoding('cl100k_base');
+    tokenizer = get_encoding('cl100k_base');
   }
   return tokenizer;
 }
 
 // Function to get filtered token IDs, similar to the Python version
+// Helper to access private property special_tokens_set from Tiktoken instance if needed
+// However, looking at the library, we can get special tokens differently.
+// For now, we'll cast to any to access the property if it exists, or use empty set.
 export function getFilteredTokenIds(tokenizer: Tiktoken, regex_pattern?: RegExp): number[] {
+  // @ts-ignore - Accessing internal property or property not in type definition
+  const specialTokensSet = tokenizer.specialTokensSet || new Set();
+
   const specialIds = new Set(
-    Array.from(tokenizer.specialTokensSet).map(token => tokenizer.encode(token)[0])
+    Array.from(specialTokensSet).map((token: any) => tokenizer.encode(token)[0])
   );
   const errorIds = new Set([...Array(15).keys()].map(i => 100261 + i).concat(100256));
   const disallowed = new Set([...specialIds, ...errorIds, 0]);
 
-  const idsToSample = [...Array(tokenizer.n_vocab).keys()].filter(id => !disallowed.has(id));
+  // @ts-ignore
+  const n_vocab = tokenizer.n_vocab || 100277; // cl100k_base size fallback
+  const idsToSample = [...Array(n_vocab).keys()].filter(id => !disallowed.has(id));
 
   if (!regex_pattern) {
     return idsToSample;
   }
 
   return idsToSample.filter(id => {
-    const token = new TextDecoder().decode(tokenizer.decode([id]));
+    const token = new TextDecoder().decode(tokenizer.decode(new Uint32Array([id])));
     return regex_pattern.test(token);
   });
 }

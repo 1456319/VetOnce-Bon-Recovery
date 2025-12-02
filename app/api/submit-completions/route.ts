@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { engineInstances } from '../../../lib/shared-state.ts'; // Import from shared state
+import { engineInstances } from '@/app/lib/shared-state';
 import { z } from 'zod';
-import { getLocalAsr } from '../generate/route.ts'; // Assuming getLocalAsr is exported and available
+import { getLocalAsr } from '@/app/lib/asr-service';
 
 const CompletionsSchema = z.object({
   results: z.array(z.object({
@@ -51,7 +51,8 @@ export async function POST(req: NextRequest) {
                     // The client will handle this and call back, so we stop here.
                     return;
                 default:
-                    throw new Error(`Unhandled command: ${command.type}`);
+                    const exhaustiveCheck: never = command;
+                    throw new Error(`Unhandled command: ${exhaustiveCheck}`);
             }
         }
 

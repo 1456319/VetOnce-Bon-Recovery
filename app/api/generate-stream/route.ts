@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { BonEngine } from '../../../lib/bon-engine.ts';
-import { engineInstances } from '../../../lib/shared-state.ts';
+import { BonEngine } from '@/app/lib/bon-engine';
+import { engineInstances } from '@/app/lib/shared-state';
 import { z } from 'zod';
 
 const ExperimentConfigSchema = z.object({
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
         if (error instanceof Error) {
           errorMessage = error.message;
         } else if (error instanceof z.ZodError) {
-          errorMessage = JSON.stringify(error.errors);
+          errorMessage = JSON.stringify(error.issues);
         }
         console.error('Error in generate-stream:', error);
         sendEvent('ERROR', { message: errorMessage });
