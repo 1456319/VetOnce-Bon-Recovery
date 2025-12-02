@@ -133,6 +133,7 @@ export type AsrRequest = {
 export type ParallelCompletionRequest = {
   type: 'GET_COMPLETIONS_PARALLEL';
   requests: CompletionRequest[];
+  current_best_asr: number;
 };
 
 // Type for the engine to yield a batch of ASR requests for parallel execution.
@@ -233,6 +234,7 @@ export class BonEngine {
           prompt: c.prompt,
           msj_prefixes: c.msj_prefixes,
         })),
+        current_best_asr: this.best_asr_global,
       };
 
       // 3. Yield a single batch of ASR requests to be executed in parallel.

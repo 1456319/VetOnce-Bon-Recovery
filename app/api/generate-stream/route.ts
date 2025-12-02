@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
         const engineRunner = engine.run();
         engineInstances.set(sessionId, engineRunner);
 
+        // Notify client of session start and total steps
+        sendEvent('SESSION_START', { total_steps: engineParams.n_steps ?? 4 });
+
         const result = engineRunner.next();
 
         if (!result.done) {
