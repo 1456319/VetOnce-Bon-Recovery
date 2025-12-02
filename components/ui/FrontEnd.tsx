@@ -142,6 +142,10 @@ const FrontEnd = () => {
   const [pipelineState, setPipelineState] = useState<PipelineState>('idle');
   const [tps, setTps] = useState<string>('0.0');
 
+  // Qwen Thinking
+  const [enableThinking, setEnableThinking] = useState<boolean>(false);
+  const showThinking = selectedModel.toLowerCase().includes("qwen");
+
   // --- API INTERACTION ---
 
   // Connection Check
@@ -294,6 +298,36 @@ const FrontEnd = () => {
     // Reset TPS
     setTps('0.0');
 
+    // CHECK: Ensure no model is already loaded (different from selected)
+    try {
+        const statusRes = await fetch('/api/system-status');
+        if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.loadedModels && statusData.loadedModels.length > 0) {
+                // Check if the loaded model is different from the selected model
+                // Note: LM Studio models have an 'identifier' and 'path'.
+                // 'selectedModel' in our state is the 'path' from /api/models (listDownloadedModels)
+                // loadedModels objects have 'identifier', 'path', etc.
+                const loaded = statusData.loadedModels[0];
+                // Try to match path or identifier
+                // We compare strictly or loosely?
+                // If selectedModel (path) is not contained in loaded path/identifier, we block.
+                // Assuming path is unique enough.
+                const isSame = loaded.path === selectedModel || loaded.identifier === selectedModel;
+
+                if (!isSame) {
+                    throw new Error(`Model "${loaded.identifier}" is already loaded. Please unload it in LM Studio before starting a new session with "${selectedModel}". Loading two models simultaneously is disabled.`);
+                }
+            }
+        }
+    } catch (error: any) {
+        console.error("Model status check failed:", error);
+        setErrorLog(prev => [...prev, `Status Check Error: ${error.message}`]);
+        setIsLoading(false);
+        setPipelineState('idle');
+        return; // STOP
+    }
+
     const payload = {
       harmful_text: prompt,
       model: selectedModel,
@@ -385,13 +419,36 @@ const FrontEnd = () => {
                   setPipelineState('gpu-inference');
                   const start = performance.now();
                   try {
+                      // Logic for Thinking Toggle
+                      let finalMessages = req.prompt;
+                      if (showThinking) {
+                          // Clone messages to avoid mutating original for other requests (though map creates new scope, req.prompt object might be shared if not careful)
+                          // In JS, req.prompt is likely a reference to the array from JSON.parse.
+                          // It's safe to map over it.
+                          finalMessages = req.prompt.map((msg: any) => {
+                              if (msg.role === 'system') {
+                                  return { ...msg, content: msg.content + ` enable_thinking=${enableThinking ? 'True' : 'False'}` };
+                              }
+                              return msg;
+                          });
+
+                          // If no system message found, prepend one?
+                          const hasSystem = finalMessages.some((m: any) => m.role === 'system');
+                          if (!hasSystem) {
+                              finalMessages = [
+                                  { role: 'system', content: `enable_thinking=${enableThinking ? 'True' : 'False'}` },
+                                  ...finalMessages
+                              ];
+                          }
+                      }
+
                       // Use fetchWithWatchdog instead of hard timeout
                       const res = await fetchWithWatchdog(lmStudioUrl, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                               model: selectedModel,
-                              messages: req.prompt,
+                              messages: finalMessages,
                           })
                       });
 
@@ -558,6 +615,18 @@ const FrontEnd = () => {
                                 />
                                 <Label htmlFor="replace-letters">Replace letters</Label>
                             </div>
+
+                            {showThinking && (
+                                <div className="flex flex-row items-center space-x-3 border-l pl-4 border-slate-300">
+                                    <Checkbox
+                                    id="enable-thinking"
+                                    checked={enableThinking}
+                                    onCheckedChange={(checked) => setEnableThinking(Boolean(checked))}
+                                    disabled={isLoading}
+                                    />
+                                    <Label htmlFor="enable-thinking" className="text-purple-600 font-bold">Enable Thinking</Label>
+                                </div>
+                            )}
                         </div>
 
                         <Button onClick={handleGenerate} disabled={isLoading || connectionStatus !== 'connected'} className="font-bold w-full md:w-auto min-w-[120px]">
