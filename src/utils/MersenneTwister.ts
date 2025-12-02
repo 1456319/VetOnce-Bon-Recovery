@@ -2,6 +2,9 @@
     A direct, line-by-line port of the Mersenne Twister implementation from:
     https://github.com/yinengy/Mersenne-Twister-in-Python/blob/master/MT19937.py
     with fixes for JavaScript's signed 32-bit integers.
+
+    UPDATED: Modified getrandbits to match Python's 'random' module (C implementation)
+    behavior, which does NOT buffer bits across calls and uses Little Endian word order.
 */
 
 export class MersenneTwister {
@@ -23,8 +26,6 @@ export class MersenneTwister {
 
     public MT: number[];
     public index: number;
-    private bit_buffer: bigint;
-    private bit_count: number;
 
     constructor() {
         this.w = 32;
@@ -45,8 +46,6 @@ export class MersenneTwister {
         this.index = this.n + 1;
         this.lower_mask = ((1 << this.r) - 1) >>> 0;
         this.upper_mask = (~this.lower_mask) >>> 0;
-        this.bit_buffer = 0n;
-        this.bit_count = 0;
     }
 
     public initState(state: number[], index: number): void {
@@ -98,24 +97,25 @@ export class MersenneTwister {
         return y >>> 0;
     }
 
+    /**
+     * Matches Python's random.getrandbits(k).
+     * Does NOT buffer bits. Generates fresh words for every call.
+     * Uses Little Endian order for words (first word is LSB).
+     */
     public getrandbits(k: number): bigint {
         if (k <= 0) {
             throw new Error("Number of bits must be greater than zero");
         }
 
-        if (this.bit_count < k) {
-            const needed = k - this.bit_count;
-            const words = Math.ceil(needed / 32);
-            for (let i = 0; i < words; i++) {
-                this.bit_buffer = (this.bit_buffer << 32n) | BigInt(this.extract_number());
-                this.bit_count += 32;
-            }
+        const numWords = Math.ceil(k / 32);
+        let result = 0n;
+
+        for (let i = 0; i < numWords; i++) {
+            const word = BigInt(this.extract_number());
+            result |= (word << BigInt(32 * i));
         }
 
-        const result = this.bit_buffer >> BigInt(this.bit_count - k);
-        this.bit_count -= k;
-        this.bit_buffer &= (1n << BigInt(this.bit_count)) - 1n;
-
-        return result;
+        const mask = (1n << BigInt(k)) - 1n;
+        return result & mask;
     }
 }
