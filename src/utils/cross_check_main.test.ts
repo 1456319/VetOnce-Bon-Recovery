@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { PythonRandomProvider } from './PythonRandomProvider';
 
 function runPythonCrossCheck(seed: number, count: number, shuffleN: number) {
-  const cmd = `python3 scripts/cross_check_numpy.py ${seed} ${count} ${shuffleN}`;
+  const cmd = `./.venv/bin/python scripts/cross_check_numpy.py ${seed} ${count} ${shuffleN}`;
   const out = execSync(cmd, { encoding: 'utf-8' });
   return JSON.parse(out);
 }
