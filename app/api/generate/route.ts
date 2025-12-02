@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BonEngine, BonEngineYield } from '../../lib/bon-engine.ts'; // Import the new engine
 import { z } from 'zod';
-import { getLoadedModel, getLocalAsr } from '@/app/lib/asr-service.ts';
+import { getLoadedModel, getLocalAsr } from '../../lib/asr-service.ts';
 
 
 const ExperimentConfigSchema = z.object({

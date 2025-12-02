@@ -135,6 +135,7 @@ const FrontEnd = () => {
   const [lmStudioUrl, setLmStudioUrl] = useState<string>('http://localhost:1234/v1/chat/completions');
 
   // NEW STATE
+  const [enableThinking, setEnableThinking] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(4);
   const [currentBestAsr, setCurrentBestAsr] = useState<number | null>(null);
@@ -304,6 +305,25 @@ const FrontEnd = () => {
       }
     };
 
+    // Check if a model is already loaded
+    try {
+        const loadedRes = await fetch('/api/lmstudio/loaded');
+        if (loadedRes.ok) {
+            const loadedModels = await loadedRes.json();
+            if (loadedModels.length > 0) {
+                 const loadedPath = loadedModels[0].path;
+                 if (loadedPath !== selectedModel) {
+                     setErrorLog(prev => [...prev, `Model '${loadedPath}' is already loaded. Please unload it in LM Studio before using '${selectedModel}'.`]);
+                     setPipelineState('idle');
+                     setIsLoading(false);
+                     return;
+                 }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to check loaded models", e);
+    }
+
     const sessionId = crypto.randomUUID();
 
     try {
@@ -383,6 +403,21 @@ const FrontEnd = () => {
           const completions = await Promise.all(
               data.requests.map(async (req: any) => {
                   setPipelineState('gpu-inference');
+
+                  // MODIFY PROMPT FOR QWEN3
+                  let messages = req.prompt;
+                  if (selectedModel.toLowerCase().includes('qwen') && selectedModel.toLowerCase().includes('3')) {
+                      messages = messages.map((msg: any) => {
+                          if (msg.role === 'system') {
+                              return {
+                                  ...msg,
+                                  content: msg.content + (enableThinking ? " enable_thinking=True" : " enable_thinking=False")
+                              };
+                          }
+                          return msg;
+                      });
+                  }
+
                   const start = performance.now();
                   try {
                       // Use fetchWithWatchdog instead of hard timeout
@@ -391,7 +426,7 @@ const FrontEnd = () => {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                               model: selectedModel,
-                              messages: req.prompt,
+                              messages: messages,
                           })
                       });
 
@@ -558,6 +593,17 @@ const FrontEnd = () => {
                                 />
                                 <Label htmlFor="replace-letters">Replace letters</Label>
                             </div>
+                            {selectedModel.toLowerCase().includes('qwen') && selectedModel.toLowerCase().includes('3') && (
+                                <div className="flex flex-row items-center space-x-3">
+                                    <Checkbox
+                                    id="enable-thinking"
+                                    checked={enableThinking}
+                                    onCheckedChange={(checked) => setEnableThinking(Boolean(checked))}
+                                    disabled={isLoading}
+                                    />
+                                    <Label htmlFor="enable-thinking">Enable Thinking</Label>
+                                </div>
+                            )}
                         </div>
 
                         <Button onClick={handleGenerate} disabled={isLoading || connectionStatus !== 'connected'} className="font-bold w-full md:w-auto min-w-[120px]">

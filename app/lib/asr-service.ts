@@ -1,4 +1,4 @@
-import { Logger } from '@/app/lib/bon';
+import { Logger } from './bon.ts';
 import { LMStudioClient, LLM } from '@lmstudio/sdk';
 import pRetry from 'p-retry';
 
