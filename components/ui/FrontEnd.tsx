@@ -1,10 +1,123 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowRight, Server, Monitor, Cpu, Activity, CheckCircle2, AlertCircle, Play, Pause, Zap } from 'lucide-react';
+
+// --- COMPONENTS ---
+
+const StepProgress = ({ current, total, bestAsr }: { current: number; total: number; bestAsr: number | null }) => {
+    const percentage = Math.min(100, (current / total) * 100);
+    return (
+        <div className="w-full space-y-2">
+            <div className="flex justify-between text-sm font-medium items-end">
+                <span>Progress</span>
+                <div className="flex flex-col items-end gap-1">
+                    {bestAsr !== null && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold transition-colors ${bestAsr > 0.5 ? 'bg-green-500/20 text-green-500' : 'bg-slate-500/20 text-slate-400'}`}>
+                            Best ASR: {(bestAsr * 100).toFixed(1)}%
+                        </span>
+                    )}
+                    <span>Step {current} of {total} ({Math.round(percentage)}%)</span>
+                </div>
+            </div>
+            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div
+                    className="h-full bg-primary transition-all duration-500 ease-in-out"
+                    style={{ width: `${percentage}%` }}
+                />
+            </div>
+        </div>
+    );
+};
+
+const ConnectionStatus = ({ status, onCheck }: { status: 'unknown' | 'connected' | 'disconnected' | 'checking'; onCheck: () => void }) => {
+    return (
+        <div className="flex items-center space-x-2" title={status === 'connected' ? 'LM Studio Online' : 'LM Studio Offline'}>
+             {status === 'checking' && <div className="h-3 w-3 rounded-full bg-yellow-500 animate-pulse" />}
+             {status === 'connected' && <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />}
+             {status === 'disconnected' && <div className="h-3 w-3 rounded-full bg-red-500" />}
+             {status === 'unknown' && <div className="h-3 w-3 rounded-full bg-gray-400" />}
+
+             <span className="text-xs text-muted-foreground">
+                {status === 'checking' && 'Checking...'}
+                {status === 'connected' && 'Ready'}
+                {status === 'disconnected' && 'Disconnected'}
+                {status === 'unknown' && 'Unknown'}
+             </span>
+             {status === 'disconnected' && (
+                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onCheck}>
+                     <Activity className="h-3 w-3" />
+                 </Button>
+             )}
+        </div>
+    );
+};
+
+const SteeringWheel = ({ state }: { state: PipelineState }) => {
+    // PipelineState: 'idle' | 'server-processing' | 'client-processing' | 'gpu-inference' | 'submitting-results'
+
+    const getServerClass = () => {
+        if (state === 'server-processing') return "text-primary animate-pulse scale-110";
+        if (state === 'idle') return "text-muted-foreground";
+        return "text-foreground";
+    };
+
+    const getClientClass = () => {
+        if (state === 'client-processing' || state === 'submitting-results') return "text-primary animate-pulse scale-110";
+         if (state === 'idle') return "text-muted-foreground";
+        return "text-foreground";
+    };
+
+    const getGpuClass = () => {
+        if (state === 'gpu-inference') return "text-green-500 animate-spin";
+         if (state === 'idle') return "text-muted-foreground";
+        return "text-foreground";
+    };
+
+    return (
+        <div className="flex flex-row items-center justify-center space-x-6 p-4 bg-slate-900/50 rounded-lg border border-slate-800 mb-6 w-full max-w-2xl mx-auto">
+            <div className={`flex flex-col items-center transition-all duration-300 ${getServerClass()}`}>
+                <Server size={32} />
+                <span className="text-xs mt-1 font-mono">Server</span>
+            </div>
+
+            <ArrowRight
+                className={`transition-all duration-300 ${state === 'server-processing' || state === 'client-processing' ? 'text-primary' : 'text-slate-700'}`}
+            />
+
+            <div className={`flex flex-col items-center transition-all duration-300 ${getClientClass()}`}>
+                <Monitor size={32} />
+                <span className="text-xs mt-1 font-mono">Client</span>
+            </div>
+
+            <ArrowRight
+                className={`transition-all duration-300 ${state === 'gpu-inference' ? 'text-green-500' : 'text-slate-700'}`}
+            />
+
+            <div className={`flex flex-col items-center transition-all duration-300 ${getGpuClass()}`}>
+                <Cpu size={32} />
+                <span className="text-xs mt-1 font-mono">LM Studio</span>
+            </div>
+
+            <div className="ml-4 pl-4 border-l border-slate-700">
+                <span className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Status</span>
+                <span className="text-sm font-bold text-primary">
+                    {state === 'idle' && 'IDLE'}
+                    {state === 'server-processing' && 'SERVER THINKING'}
+                    {state === 'client-processing' && 'CLIENT READY'}
+                    {state === 'gpu-inference' && 'GPU WORKING'}
+                    {state === 'submitting-results' && 'SUBMITTING'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+type PipelineState = 'idle' | 'server-processing' | 'client-processing' | 'gpu-inference' | 'submitting-results';
 
 const FrontEnd = () => {
   // --- STATE MANAGEMENT ---
@@ -21,7 +134,61 @@ const FrontEnd = () => {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [lmStudioUrl, setLmStudioUrl] = useState<string>('http://localhost:1234/v1/chat/completions');
 
+  // NEW STATE
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [totalSteps, setTotalSteps] = useState<number>(4);
+  const [currentBestAsr, setCurrentBestAsr] = useState<number | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected' | 'checking'>('unknown');
+  const [pipelineState, setPipelineState] = useState<PipelineState>('idle');
+  const [tps, setTps] = useState<string>('0.0');
+
   // --- API INTERACTION ---
+
+  // Connection Check
+  const checkConnection = async (url: string) => {
+      setConnectionStatus('checking');
+      try {
+          // Construct base URL from completions URL (remove /chat/completions or similar)
+          // Assumption: user inputs http://localhost:1234/v1/chat/completions
+          // We want http://localhost:1234/v1/models
+          let baseUrl = url;
+          try {
+             const urlObj = new URL(url);
+             // Simple heuristic: go up two levels if it ends in chat/completions
+             if (urlObj.pathname.endsWith('/chat/completions')) {
+                 baseUrl = url.replace(/\/chat\/completions\/?$/, '/models');
+             } else if (urlObj.pathname.endsWith('/completions')) {
+                 baseUrl = url.replace(/\/completions\/?$/, '/models');
+             } else {
+                 // Fallback or assume root
+                 baseUrl = `${urlObj.origin}/v1/models`;
+             }
+          } catch (e) {
+              // invalid url, ignore
+          }
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout for check
+
+          const res = await fetch(baseUrl, {
+              method: 'GET',
+              signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+              setConnectionStatus('connected');
+          } else {
+              setConnectionStatus('disconnected');
+          }
+      } catch (e) {
+          setConnectionStatus('disconnected');
+      }
+  };
+
+  useEffect(() => {
+    checkConnection(lmStudioUrl);
+  }, [lmStudioUrl]);
 
   useEffect(() => {
     async function fetchModels() {
@@ -44,15 +211,17 @@ const FrontEnd = () => {
   }, []);
 
   /**
-   * Handles the "Generate" button click. This function sends the user's
-   * configuration to the backend API route, waits for the result,
-   * and updates the UI.
+   * Handles the "Generate" button click.
    */
   async function handleGenerate() {
     setIsLoading(true);
+    setPipelineState('server-processing');
     setOutput("");
     setErrorLog([]);
     setLogStream([]);
+    setCurrentStep(0);
+    // Reset TPS
+    setTps('0.0');
 
     const payload = {
       harmful_text: prompt,
@@ -85,8 +254,10 @@ const FrontEnd = () => {
     } catch (error: any) {
       console.error("Error during generation:", error);
       setErrorLog(prev => [...prev, `Error: ${error.message}`]);
+      setPipelineState('idle');
     } finally {
       setIsLoading(false);
+      setPipelineState('idle');
     }
   }
 
@@ -95,34 +266,58 @@ const FrontEnd = () => {
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+        while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          const eventName = line.substring(7);
-          const dataLine = lines.shift()?.substring(6);
-          if (dataLine) {
-            const data = JSON.parse(dataLine);
-            await handleServerEvent(eventName, data, sessionId);
-          }
+        for (const line of lines) {
+            if (line.startsWith('event: ')) {
+            const eventName = line.substring(7);
+            const dataLine = lines.shift()?.substring(6);
+            if (dataLine) {
+                const data = JSON.parse(dataLine);
+                await handleServerEvent(eventName, data, sessionId);
+            }
+            }
         }
-      }
+        }
+    } catch (e: any) {
+        setErrorLog(prev => [...prev, `Stream Error: ${e.message}`]);
+        setPipelineState('idle');
+    } finally {
+        reader.releaseLock();
     }
   }
 
   async function handleServerEvent(eventName: string, data: any, sessionId: string) {
       switch (eventName) {
+        case 'SESSION_START':
+            console.log('Session Started:', data);
+            if (data.total_steps) setTotalSteps(data.total_steps);
+            break;
+
         case 'GET_COMPLETIONS_PARALLEL':
           console.log('Received GET_COMPLETIONS_PARALLEL:', data);
+          setPipelineState('client-processing');
+          setCurrentStep(prev => prev + 1); // Increment step
+          if (typeof data.current_best_asr === 'number') {
+              setCurrentBestAsr(data.current_best_asr);
+          }
+
           const completions = await Promise.all(
               data.requests.map(async (req: any) => {
+                  setPipelineState('gpu-inference');
+                  const start = performance.now();
                   try {
+                      // Add timeout
+                      const controller = new AbortController();
+                      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
                       const res = await fetch(lmStudioUrl, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -130,10 +325,22 @@ const FrontEnd = () => {
                               model: selectedModel,
                               messages: req.prompt,
                           }),
+                          signal: controller.signal
                       });
+                      clearTimeout(timeoutId);
+
                       if (!res.ok) throw new Error(`LM Studio responded with status: ${res.status}`);
                       const llmResponse = await res.json();
-                      return { completion: llmResponse.choices[0].message.content, stop_reason: 'stop' };
+                      const content = llmResponse.choices[0].message.content;
+
+                      const end = performance.now();
+                      const durationSec = (end - start) / 1000;
+                      // Approx tokens (chars / 4)
+                      const estTokens = content.length / 4;
+                      const currentTps = (estTokens / durationSec).toFixed(1);
+                      setTps(currentTps);
+
+                      return { completion: content, stop_reason: 'stop' };
                   } catch (error: any) {
                       setErrorLog(prev => [...prev, `LLM Request Failed: ${error.message}`]);
                       return { completion: `Error: ${error.message}`, stop_reason: 'error' };
@@ -141,6 +348,7 @@ const FrontEnd = () => {
               })
           );
 
+          setPipelineState('submitting-results');
           const submitResponse = await fetch('/api/submit-completions', {
               method: 'POST',
               headers: {
@@ -151,6 +359,7 @@ const FrontEnd = () => {
           });
 
           if (!submitResponse.body) throw new Error("Submit completions response body is null.");
+          setPipelineState('server-processing'); // Waiting for next stream chunk
           await processStream(submitResponse.body, sessionId); // Process the new stream
           break;
 
@@ -162,67 +371,86 @@ const FrontEnd = () => {
         case 'ANALYSIS_RESULT':
           console.log('Received ANALYSIS_RESULT:', data);
           setOutput(data.payload.best_prompt);
+          setPipelineState('idle');
           break;
 
         case 'ENGINE_COMPLETE':
             console.log('Received ENGINE_COMPLETE:', data);
-            setOutput(data.payload.best_prompt);
+            if (data.payload) {
+                setOutput(data.payload.best_prompt);
+            }
+            setPipelineState('idle');
             break;
 
         case 'ERROR':
           console.error('Server Error:', data.message);
           setErrorLog(prev => [...prev, `Server Error: ${data.message}`]);
+          setPipelineState('idle');
           break;
       }
   }
 
     try {
       return (
-        <div className="flex flex-col">
+        <div className="flex flex-col min-h-screen">
           <main className="flex-1 relative">
-            <section className="container mx-auto mb-5 mt-20">
+            <section className="container mx-auto mb-5 mt-10">
               <div className="flex items-center justify-center">
                 <div className="w-2/3">
                   <h1 className="text-3xl font-bold mb-4">Best-of-N Jailbreaking Prompt Generator</h1>
-                  <p className="text-justify">
-                    This application implements the Best-of-N Jailbreaking (BoN) method, which focuses on exploiting vulnerabilities in AI models. This version is inspired by the work of <a className="text-blue-300 underline" href="https://web.archive.org/web/20250220094727/https://jplhughes.github.io/bon-jailbreaking/" target="_blank" rel="noopener noreferrer">John Hughes and collaborators</a>.
-                  </p>
-                  <br />
-                  <p className="text-justify">
-                    See if you can jailbreak the AI by giving it a prompt it's not supposed to handle.
+
+                  {/* Steering Wheel */}
+                  <SteeringWheel state={pipelineState} />
+
+                  {/* Progress Bar */}
+                  {isLoading && (
+                    <div className="mb-6">
+                        <StepProgress current={currentStep} total={totalSteps} bestAsr={currentBestAsr} />
+                    </div>
+                  )}
+
+                  <p className="text-justify text-muted-foreground mb-6">
+                    This application implements the Best-of-N Jailbreaking (BoN) method.
                   </p>
                 </div>
               </div>
             </section>
+
             <section className="container mx-auto min-h-[25vh] mb-5">
-              <div className="flex items-center justify-center min-h-[20vh]">
+              <div className="flex items-center justify-center">
                 <div className="w-2/3">
                   <div className="space-y-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="model-select">Select Model</Label>
-                      <Select onValueChange={setSelectedModel} value={selectedModel} disabled={isLoading}>
-                        <SelectTrigger id="model-select">
-                          <SelectValue placeholder="Select a model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {models.map(model => (
-                            <SelectItem key={model.path} value={model.path}>
-                              {model.path}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="model-select">Select Model</Label>
+                            <Select onValueChange={setSelectedModel} value={selectedModel} disabled={isLoading}>
+                                <SelectTrigger id="model-select">
+                                <SelectValue placeholder="Select a model" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                {models.map(model => (
+                                    <SelectItem key={model.path} value={model.path}>
+                                    {model.path}
+                                    </SelectItem>
+                                ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="lm-studio-url">LM Studio URL</Label>
+                                <ConnectionStatus status={connectionStatus} onCheck={() => checkConnection(lmStudioUrl)} />
+                            </div>
+                            <Input
+                                id="lm-studio-url"
+                                value={lmStudioUrl}
+                                onChange={(e) => setLmStudioUrl(e.target.value)}
+                                placeholder="http://localhost:1234/v1/chat/completions"
+                                disabled={isLoading}
+                            />
+                        </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="lm-studio-url">LM Studio URL</Label>
-                        <Input
-                            id="lm-studio-url"
-                            value={lmStudioUrl}
-                            onChange={(e) => setLmStudioUrl(e.target.value)}
-                            placeholder="http://localhost:1234/v1/chat/completions"
-                            disabled={isLoading}
-                        />
-                    </div>
+
                     <div className="space-y-2">
                       <Textarea
                         className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-32"
@@ -234,46 +462,56 @@ const FrontEnd = () => {
                         disabled={isLoading}
                       />
                     </div>
-                    <div className="flex flex-row space-x-4">
-                      <div className="flex flex-row items-start space-x-3 space-y-0">
-                        <Checkbox
-                          id="change-case"
-                          checked={changeCase}
-                          onCheckedChange={(checked) => setChangeCase(Boolean(checked))}
-                          disabled={isLoading}
-                        />
-                        <div className="space-y-1 leading-none">
-                          <Label htmlFor="change-case">Change case</Label>
+
+                    <div className="flex flex-row space-x-6 justify-between items-center">
+                        <div className="flex flex-row space-x-4">
+                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                                <Checkbox
+                                id="change-case"
+                                checked={changeCase}
+                                onCheckedChange={(checked) => setChangeCase(Boolean(checked))}
+                                disabled={isLoading}
+                                />
+                                <div className="space-y-1 leading-none">
+                                <Label htmlFor="change-case">Change case</Label>
+                                </div>
+                            </div>
+                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                                <Checkbox
+                                id="shuffle-letters"
+                                checked={shuffleLetters}
+                                onCheckedChange={(checked) => setShuffleLetters(Boolean(checked))}
+                                disabled={isLoading}
+                                />
+                                <div className="space-y-1 leading-none">
+                                <Label htmlFor="shuffle-letters">Shuffle letters</Label>
+                                </div>
+                            </div>
+                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                                <Checkbox
+                                id="replace-letters"
+                                checked={replaceLetters}
+                                onCheckedChange={(checked) => setReplaceLetters(Boolean(checked))}
+                                disabled={isLoading}
+                                />
+                                <div className="space-y-1 leading-none">
+                                <Label htmlFor="replace-letters">Replace letters</Label>
+                                </div>
+                            </div>
                         </div>
-                      </div>
-                      <div className="flex flex-row items-start space-x-3 space-y-0">
-                        <Checkbox
-                          id="shuffle-letters"
-                          checked={shuffleLetters}
-                          onCheckedChange={(checked) => setShuffleLetters(Boolean(checked))}
-                          disabled={isLoading}
-                        />
-                        <div className="space-y-1 leading-none">
-                          <Label htmlFor="shuffle-letters">Shuffle letters</Label>
-                        </div>
-                      </div>
-                      <div className="flex flex-row items-start space-x-3 space-y-0">
-                        <Checkbox
-                          id="replace-letters"
-                          checked={replaceLetters}
-                          onCheckedChange={(checked) => setReplaceLetters(Boolean(checked))}
-                          disabled={isLoading}
-                        />
-                        <div className="space-y-1 leading-none">
-                          <Label htmlFor="replace-letters">Replace letters</Label>
-                        </div>
-                      </div>
+
+                        <Button onClick={handleGenerate} disabled={isLoading || connectionStatus !== 'connected'} className="font-bold min-w-[120px]">
+                            {isLoading ? (
+                                <span className="flex items-center gap-2">
+                                    <Activity className="animate-spin h-4 w-4" /> Generating
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-2">
+                                    <Zap className="h-4 w-4" /> Generate
+                                </span>
+                            )}
+                        </Button>
                     </div>
-                  </div>
-                  <div className="flex justify-end mt-4">
-                    <Button onClick={handleGenerate} disabled={isLoading} className="font-bold">
-                      {isLoading ? 'Generating...' : 'Generate'}
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -283,56 +521,69 @@ const FrontEnd = () => {
                     {/* Output Panel */}
                     <div className="w-1/3">
                         <Label>Output</Label>
-                        <div data-testid="output-panel" className="min-h-24 rounded-md border border-slate-300 p-3 text-sm overflow-y-auto h-64">
-                            {output || "—"}
+                        <div data-testid="output-panel" className="min-h-24 rounded-md border border-slate-300 p-3 text-sm overflow-y-auto h-64 bg-background">
+                            {output || <span className="text-muted-foreground italic">Results will appear here...</span>}
                         </div>
                     </div>
 
                     {/* Log Stream Panel */}
                     <div className="w-1/3">
-                        <Label>Log Stream</Label>
-                        <div className="min-h-24 rounded-md border border-slate-300 p-3 text-sm bg-gray-900 text-green-400 font-mono overflow-y-auto h-64">
+                        <div className="flex justify-between items-center mb-1">
+                            <Label>Log Stream</Label>
+                            {isLoading && <span className="text-xs font-mono text-green-500">Speed: {tps} T/s</span>}
+                        </div>
+                        <div className="min-h-24 rounded-md border border-slate-300 p-3 text-sm bg-slate-950 text-green-400 font-mono overflow-y-auto h-64">
                             {logStream.map((log, index) => (
                                 <div key={index}>{`> ${log}`}</div>
                             ))}
+                            <div ref={(el) => { if (el) el.scrollIntoView({ behavior: 'smooth' }) }} />
                         </div>
                     </div>
                 </div>
             </section>
           </main>
-          <footer className="py-4 shadow-md backdrop-blur-xl mt-12">
-            <hr />
-            <div className="container mx-auto flex gap-6 items-center justify-center mt-4 font-medium text-white/75">
-              {/* Footer content can be added here */}
+
+          <footer className="py-4 shadow-md backdrop-blur-xl mt-12 border-t border-slate-200">
+            <div className="container mx-auto flex gap-6 items-center justify-center mt-4 font-medium text-muted-foreground">
+              <span>bestofn.vetonce.com</span>
+              <span>2025</span>
             </div>
           </footer>
   
           {/* Error Log Panel */}
-          <div className={`fixed top-0 right-0 h-full bg-gray-800 text-white p-4 transition-transform transform ${isLogVisible ? 'translateX(0)' : 'translate-x-full'} w-1/3`}>
-            <button onClick={() => setIsLogVisible(false)} className="absolute top-2 right-2 text-white">X</button>
-            <h2 className="text-lg font-bold mb-4">Error Log</h2>
-            <div className="overflow-y-auto h-full">
-              {errorLog.map((error, index) => (
-                <div key={index} className="bg-gray-700 p-2 rounded mb-2">
-                  {error}
-                </div>
-              ))}
+          <div className={`fixed top-0 right-0 h-full bg-slate-900 text-white p-4 transition-transform transform ${isLogVisible ? 'translateX(0)' : 'translate-x-full'} w-1/3 shadow-2xl z-50`}>
+            <button onClick={() => setIsLogVisible(false)} className="absolute top-4 right-4 text-white hover:text-red-400">
+                <ArrowRight className="rotate-180" />
+            </button>
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <AlertCircle className="text-red-500" /> Error Log
+            </h2>
+            <div className="overflow-y-auto h-full pb-10">
+              {errorLog.length === 0 ? (
+                  <p className="text-slate-500 italic">No errors logged.</p>
+              ) : (
+                errorLog.map((error, index) => (
+                    <div key={index} className="bg-red-900/30 border border-red-900/50 p-2 rounded mb-2 text-sm font-mono">
+                    {error}
+                    </div>
+                ))
+              )}
             </div>
           </div>
   
           {/* Button to toggle error log */}
-          {!isLogVisible && (
-            <button onClick={() => setIsLogVisible(true)} className="fixed bottom-4 right-4 bg-red-600 text-white p-2 rounded-full">
-              Show Error Log
+          {!isLogVisible && errorLog.length > 0 && (
+            <button onClick={() => setIsLogVisible(true)} className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-full shadow-lg hover:bg-red-700 transition-colors">
+              <AlertCircle size={24} />
             </button>
           )}
         </div>
       );
     } catch (error: any) {
       return (
-        <div>
-          <h1>An error occurred during rendering:</h1>
-          <pre>{error.message}</pre>
+        <div className="p-10 text-red-500">
+          <h1 className="text-2xl font-bold">Critical Rendering Error</h1>
+          <pre className="mt-4 bg-slate-100 p-4 rounded">{error.message}</pre>
         </div>
       );
     }
