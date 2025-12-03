@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, Server, Monitor, Cpu, Activity, CheckCircle2, AlertCircle, Play, Pause, Zap } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 
 // --- COMPONENTS ---
 
@@ -117,7 +118,53 @@ const SteeringWheel = ({ state }: { state: PipelineState }) => {
     );
 };
 
+const ResultsTable = ({ results }: { results: StepResult[] }) => {
+    if (results.length === 0) return null;
+
+    return (
+        <div className="w-full mt-4">
+            <h3 className="text-lg font-bold mb-2">Detailed Results</h3>
+            <div className="overflow-x-auto rounded-md border border-slate-700 bg-slate-900/50">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-800 text-slate-300 uppercase text-xs">
+                        <tr>
+                            <th className="px-4 py-2">Seed</th>
+                            <th className="px-4 py-2">ASR</th>
+                            <th className="px-4 py-2">Prompt Snippet</th>
+                            <th className="px-4 py-2">Response Snippet</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                        {results.map((r, i) => (
+                            <tr key={i} className="hover:bg-slate-800/50 transition-colors">
+                                <td className="px-4 py-2 font-mono text-xs">{r.seed ?? '-'}</td>
+                                <td className={`px-4 py-2 font-bold ${r.asr > 0.5 ? 'text-green-500' : 'text-slate-400'}`}>
+                                    {(r.asr * 100).toFixed(1)}%
+                                </td>
+                                <td className="px-4 py-2 text-slate-300 max-w-xs truncate" title={typeof r.prompt === 'string' ? r.prompt : JSON.stringify(r.prompt)}>
+                                    {typeof r.prompt === 'string' ? r.prompt : 'Running...'}
+                                </td>
+                                <td className="px-4 py-2 text-slate-400 max-w-xs truncate" title={r.completion}>
+                                    {r.completion}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+
 type PipelineState = 'idle' | 'server-processing' | 'client-processing' | 'gpu-inference' | 'submitting-results';
+
+type StepResult = {
+    seed?: number;
+    prompt: string | any[];
+    completion: string;
+    asr: number;
+};
 
 const FrontEnd = () => {
   // --- STATE MANAGEMENT ---
@@ -135,6 +182,12 @@ const FrontEnd = () => {
   // NEW STATE: Split model selection
   const [targetingModel, setTargetingModel] = useState<string>('');
   const [gradingModel, setGradingModel] = useState<string>('');
+
+  // NEW STATE: Generation Mode
+  const [generationMode, setGenerationMode] = useState<'short' | 'long'>('long');
+
+  // NEW STATE: Step Results
+  const [stepResults, setStepResults] = useState<StepResult[]>([]);
 
   const [lmStudioUrl, setLmStudioUrl] = useState<string>('http://localhost:1234/v1/chat/completions');
 
@@ -297,6 +350,7 @@ const FrontEnd = () => {
     setOutput("");
     setErrorLog([]);
     setLogStream([]);
+    setStepResults([]); // Reset results
     setCurrentStep(0);
     // Reset TPS
     setTps('0.0');
@@ -427,14 +481,22 @@ const FrontEnd = () => {
 
                   const start = performance.now();
                   try {
+                      const payload: any = {
+                          model: targetingModel,
+                          messages: messages,
+                      };
+
+                      // APPLY GENERATION MODE: Short vs Long
+                      if (generationMode === 'short') {
+                          payload.max_tokens = 50; // Approx 200 characters
+                      }
+                      // For 'long', we omit max_tokens to use model default (usually unlimited or context size)
+
                       // Use fetchWithWatchdog instead of hard timeout
                       const res = await fetchWithWatchdog(lmStudioUrl, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                              model: targetingModel,
-                              messages: messages,
-                          })
+                          body: JSON.stringify(payload)
                       });
 
                       if (!res.ok) throw new Error(`LM Studio responded with status: ${res.status}`);
@@ -470,6 +532,11 @@ const FrontEnd = () => {
           setPipelineState('server-processing'); // Waiting for next stream chunk
           await processStream(submitResponse.body, sessionId); // Process the new stream
           break;
+
+        case 'STEP_REPORT':
+            console.log('Received STEP_REPORT:', data);
+            setStepResults(prev => [...data, ...prev]); // Add new results to the top
+            break;
 
         case 'LOG_MESSAGE':
           console.log('Log:', data.message);
@@ -562,6 +629,36 @@ const FrontEnd = () => {
                             </Select>
                         </div>
 
+                        {/* Generation Mode Selection */}
+                        <div className="space-y-2">
+                            <Label>Generation Mode</Label>
+                            <div className="flex space-x-4">
+                                <div className="flex items-center space-x-2">
+                                    <Switch
+                                        id="mode-short"
+                                        checked={generationMode === 'short'}
+                                        onCheckedChange={(c) => c && setGenerationMode('short')}
+                                        disabled={isLoading}
+                                    />
+                                    <Label htmlFor="mode-short">Short (~200 chars)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch
+                                        id="mode-long"
+                                        checked={generationMode === 'long'}
+                                        onCheckedChange={(c) => c && setGenerationMode('long')}
+                                        disabled={isLoading}
+                                    />
+                                    <Label htmlFor="mode-long">Long (Full)</Label>
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {generationMode === 'short'
+                                    ? "Disconnects after ~200 chars to speed up grading."
+                                    : "Waits for full generation before grading."}
+                            </p>
+                        </div>
+
                         <div className="space-y-2 md:col-span-2">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="lm-studio-url">LM Studio URL</Label>
@@ -647,6 +744,7 @@ const FrontEnd = () => {
                 </div>
               </div>
             </section>
+
             <section className="container mx-auto mb-5 mt-14 flex-1 px-4">
                 <div className="flex flex-col md:flex-row justify-center gap-4">
                     {/* Output Panel */}
@@ -671,6 +769,14 @@ const FrontEnd = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Detailed Results Table */}
+                <div className="flex justify-center mt-6">
+                    <div className="w-full md:w-2/3 lg:w-2/3">
+                        <ResultsTable results={stepResults} />
+                    </div>
+                </div>
+
             </section>
           </main>
 

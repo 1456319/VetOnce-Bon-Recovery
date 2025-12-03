@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
                     sendEvent('GET_COMPLETIONS_PARALLEL', { ...command, sessionId });
                     // The client will handle this and call back, so we stop here.
                     return;
+                case 'STEP_REPORT':
+                    sendEvent('STEP_REPORT', command.payload);
+                    // Continue the engine immediately
+                    nextCommand = engineRunner.next();
+                    break;
                 default:
                     const exhaustiveCheck: never = command;
                     throw new Error(`Unhandled command: ${exhaustiveCheck}`);
