@@ -313,7 +313,7 @@ build-backend = "setuptools.build_meta"
 name = "bon-jailbreaker"
 version = "0.1.0"
 authors = [
-  { name="VetOnce", email="author@example.com" },
+  { name="1456319", email="author@example.com" },
 ]
 description = "A tool to implement the Best-of-N Jailbreaking method."
 readme = "README.md"

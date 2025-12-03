@@ -651,7 +651,7 @@ const FrontEnd = () => {
 
           <footer className="py-4 shadow-md backdrop-blur-xl mt-12 border-t border-slate-200">
             <div className="container mx-auto flex gap-6 items-center justify-center mt-4 font-medium text-muted-foreground">
-              <span>bestofn.vetonce.com</span>
+              <span>bestofn.1456319.com</span>
               <span>2025</span>
             </div>
           </footer>
