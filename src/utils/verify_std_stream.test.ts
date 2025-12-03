@@ -1,9 +1,12 @@
 import { execSync } from 'child_process';
 import { describe, it, expect } from 'vitest';
 import { PythonRandomProvider } from './PythonRandomProvider';
+import { buildPythonCommand } from './platform-config';
 
 function getPythonStdStream(seed: number, count: number): number[] {
-  const cmd = `python3 scripts/verify_std_stream.py ${seed} ${count}`;
+  // Use platform-aware command builder
+  // Note: Originally this used 'python3', but we should use the venv python for consistency
+  const cmd = buildPythonCommand('scripts/verify_std_stream.py', [seed, count]);
   const out = execSync(cmd, { encoding: 'utf-8' });
   return JSON.parse(out);
 }

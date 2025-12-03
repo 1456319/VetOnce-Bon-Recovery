@@ -1,9 +1,11 @@
 import { execSync } from 'child_process';
 import { describe, it, expect } from 'vitest';
 import { PythonRandomProvider } from './PythonRandomProvider';
+import { buildPythonCommand } from './platform-config';
 
 function runPythonCrossCheck(seed: number, count: number, shuffleN: number) {
-  const cmd = `./.venv/bin/python scripts/cross_check_numpy.py ${seed} ${count} ${shuffleN}`;
+  // Use platform-aware command builder
+  const cmd = buildPythonCommand('scripts/cross_check_numpy.py', [seed, count, shuffleN]);
   const out = execSync(cmd, { encoding: 'utf-8' });
   return JSON.parse(out);
 }
