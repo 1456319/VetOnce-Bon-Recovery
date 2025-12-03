@@ -7,6 +7,8 @@
 // This defines all the parameters for a Best-of-N experiment.
 export type BonEngineParams = {
   harmful_text: string;
+  grading_model?: string;
+  targeting_model?: string;
   prefix?: string | null;
   suffix?: string | null;
   optim_harmful_text?: boolean;
@@ -161,6 +163,8 @@ export class BonEngine {
   constructor(params: BonEngineParams, logger?: Logger) {
     // Set default values for all optional parameters, mirroring the original API route.
     this.params = {
+      grading_model: 'google/gemma-3-1b', // Default
+      targeting_model: 'default', // Default
       prefix: null,
       suffix: null,
       optim_harmful_text: true,

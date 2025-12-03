@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
 import { BonEngine } from '@/app/lib/bon-engine';
-import { engineInstances } from '@/app/lib/shared-state';
+import { engineInstances, sessionConfigs } from '@/app/lib/shared-state';
 import { z } from 'zod';
 
 const ExperimentConfigSchema = z.object({
   harmful_text: z.string(),
-  model: z.string(),
+  targeting_model: z.string(), // Renamed from model to targeting_model
+  grading_model: z.string(),   // Added grading_model
   transforms: z.object({
     changeCase: z.boolean(),
     shuffleLetters: z.boolean(),
@@ -46,7 +47,18 @@ export async function POST(req: NextRequest) {
 
       try {
         const body = await req.json();
+        // Support legacy calls (if any) by checking if model is present and mapping it
+        if ((body as any).model && !body.targeting_model) {
+            body.targeting_model = (body as any).model;
+        }
+        if ((body as any).model && !body.grading_model) {
+            body.grading_model = (body as any).model;
+        }
+
         const validatedBody = ExperimentConfigSchema.parse(body);
+
+        // Store session config
+        sessionConfigs.set(sessionId, { gradingModel: validatedBody.grading_model });
 
         const engineParams = {
           ...validatedBody,
@@ -96,6 +108,7 @@ export async function POST(req: NextRequest) {
     },
     cancel() {
         engineInstances.delete(sessionId);
+        sessionConfigs.delete(sessionId);
     }
   });
 

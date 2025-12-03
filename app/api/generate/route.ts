@@ -6,7 +6,9 @@ import { getLoadedModel, getLocalAsr } from '../../lib/asr-service.ts';
 
 const ExperimentConfigSchema = z.object({
   harmful_text: z.string(),
-  model: z.string(), // Added to accept the selected model from the frontend
+  targeting_model: z.string().optional(), // Optional for backward compatibility in this route
+  grading_model: z.string().optional(),   // Optional for backward compatibility in this route
+  model: z.string().optional(), // Legacy
   transforms: z.object({ // This is the nested object from the frontend
     changeCase: z.boolean(),
     shuffleLetters: z.boolean(),
@@ -50,9 +52,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validatedBody = ExperimentConfigSchema.parse(body);
 
+    const targetingModel = validatedBody.targeting_model || validatedBody.model || 'default';
+    const gradingModel = validatedBody.grading_model || validatedBody.model || 'google/gemma-3-1b';
+
     // Map frontend transforms to BonEngine parameters
     const engineParams = {
         ...validatedBody,
+        targeting_model: targetingModel,
+        grading_model: gradingModel,
         word_scrambling: validatedBody.transforms.shuffleLetters,
         random_capitalization: validatedBody.transforms.changeCase,
         ascii_perturbation: validatedBody.transforms.replaceLetters,
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
 
         switch (command.type) {
             case 'GET_COMPLETIONS_PARALLEL':
-                const model = await getLoadedModel(validatedBody.model, logger);
+                const model = await getLoadedModel(targetingModel, logger);
                 serviceResult = await Promise.all(
                     command.requests.map(async (req) => {
                         const response = await model.respond(req.prompt);
@@ -80,7 +87,7 @@ export async function POST(req: NextRequest) {
                 break;
             case 'GET_ASRS_PARALLEL':
                 serviceResult = await Promise.all(
-                    command.requests.map(req => getLocalAsr(req.completion, req.behavior, logger))
+                    command.requests.map(req => getLocalAsr(req.completion, req.behavior, logger, gradingModel))
                 );
                 break;
             default:

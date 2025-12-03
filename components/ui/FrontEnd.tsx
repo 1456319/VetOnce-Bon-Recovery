@@ -131,7 +131,11 @@ const FrontEnd = () => {
   const [logStream, setLogStream] = useState<string[]>([]);
   const [isLogVisible, setIsLogVisible] = useState<boolean>(false);
   const [models, setModels] = useState<any[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
+
+  // NEW STATE: Split model selection
+  const [targetingModel, setTargetingModel] = useState<string>('');
+  const [gradingModel, setGradingModel] = useState<string>('');
+
   const [lmStudioUrl, setLmStudioUrl] = useState<string>('http://localhost:1234/v1/chat/completions');
 
   // NEW STATE
@@ -201,7 +205,9 @@ const FrontEnd = () => {
         const data = await res.json();
         setModels(data);
         if (data.length > 0) {
-          setSelectedModel(data[0].path);
+          // Set defaults if available, otherwise first model
+          setTargetingModel(data[0].path);
+          setGradingModel(data[0].path);
         }
       } catch (error: any) {
         console.error("Failed to fetch models:", error);
@@ -297,7 +303,8 @@ const FrontEnd = () => {
 
     const payload = {
       harmful_text: prompt,
-      model: selectedModel,
+      targeting_model: targetingModel,
+      grading_model: gradingModel,
       transforms: {
         changeCase: changeCase,
         shuffleLetters: shuffleLetters,
@@ -312,11 +319,11 @@ const FrontEnd = () => {
             const loadedModels = await loadedRes.json();
             if (loadedModels.length > 0) {
                  const loadedPath = loadedModels[0].path;
-                 if (loadedPath !== selectedModel) {
-                     setErrorLog(prev => [...prev, `Model '${loadedPath}' is already loaded. Please unload it in LM Studio before using '${selectedModel}'.`]);
-                     setPipelineState('idle');
-                     setIsLoading(false);
-                     return;
+                 // Warning: In a real dual-model setup, we might need both models loaded or switch between them.
+                 // For now, we'll just log if neither matches, or be permissive.
+                 if (loadedPath !== targetingModel && loadedPath !== gradingModel) {
+                     // Just a warning in log, don't block, as LM Studio might handle auto-loading or swapping
+                     setLogStream(prev => [...prev, `WARN: Loaded model '${loadedPath}' matches neither targeting nor grading model.`]);
                  }
             }
         }
@@ -406,7 +413,7 @@ const FrontEnd = () => {
 
                   // MODIFY PROMPT FOR QWEN3
                   let messages = req.prompt;
-                  if (selectedModel.toLowerCase().includes('qwen') && selectedModel.toLowerCase().includes('3')) {
+                  if (targetingModel.toLowerCase().includes('qwen') && targetingModel.toLowerCase().includes('3')) {
                       messages = messages.map((msg: any) => {
                           if (msg.role === 'system') {
                               return {
@@ -425,7 +432,7 @@ const FrontEnd = () => {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                              model: selectedModel,
+                              model: targetingModel,
                               messages: messages,
                           })
                       });
@@ -522,11 +529,12 @@ const FrontEnd = () => {
                 <div className="w-full md:w-2/3 lg:w-1/2">
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Targeting Model Selection */}
                         <div className="space-y-2">
-                            <Label htmlFor="model-select">Select Model</Label>
-                            <Select onValueChange={setSelectedModel} value={selectedModel} disabled={isLoading}>
-                                <SelectTrigger id="model-select">
-                                <SelectValue placeholder="Select a model" />
+                            <Label htmlFor="targeting-model-select">Targeting Model (Ingester)</Label>
+                            <Select onValueChange={setTargetingModel} value={targetingModel} disabled={isLoading}>
+                                <SelectTrigger id="targeting-model-select">
+                                <SelectValue placeholder="Select Ingester" />
                                 </SelectTrigger>
                                 <SelectContent>
                                 {models.map(model => (
@@ -537,7 +545,24 @@ const FrontEnd = () => {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-2">
+                         {/* Grading Model Selection */}
+                         <div className="space-y-2">
+                            <Label htmlFor="grading-model-select">Grading Model (Evaluator)</Label>
+                            <Select onValueChange={setGradingModel} value={gradingModel} disabled={isLoading}>
+                                <SelectTrigger id="grading-model-select">
+                                <SelectValue placeholder="Select Evaluator" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                {models.map(model => (
+                                    <SelectItem key={model.path} value={model.path}>
+                                    {model.path}
+                                    </SelectItem>
+                                ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="lm-studio-url">LM Studio URL</Label>
                                 <ConnectionStatus status={connectionStatus} onCheck={() => checkConnection(lmStudioUrl)} />
@@ -593,7 +618,7 @@ const FrontEnd = () => {
                                 />
                                 <Label htmlFor="replace-letters">Replace letters</Label>
                             </div>
-                            {selectedModel.toLowerCase().includes('qwen') && selectedModel.toLowerCase().includes('3') && (
+                            {targetingModel.toLowerCase().includes('qwen') && targetingModel.toLowerCase().includes('3') && (
                                 <div className="flex flex-row items-center space-x-3">
                                     <Checkbox
                                     id="enable-thinking"

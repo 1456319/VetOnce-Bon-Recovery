@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { engineInstances } from '@/app/lib/shared-state';
+import { engineInstances, sessionConfigs } from '@/app/lib/shared-state';
 import { z } from 'zod';
 import { getLocalAsr } from '@/app/lib/asr-service';
 
@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: 'Engine instance not found for this session.' }), { status: 404 });
   }
 
+  const sessionConfig = sessionConfigs.get(sessionId);
+  const gradingModel = sessionConfig?.gradingModel || 'google/gemma-3-1b'; // Fallback if missing
+
   const body = await req.json();
   const validatedBody = CompletionsSchema.parse(body);
 
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
             switch (command.type) {
                 case 'GET_ASRS_PARALLEL':
                     serviceResult = await Promise.all(
-                        command.requests.map(req => getLocalAsr(req.completion, req.behavior))
+                        command.requests.map(req => getLocalAsr(req.completion, req.behavior, undefined, gradingModel))
                     );
                     nextCommand = engineRunner.next(serviceResult);
                     break;
@@ -59,18 +62,21 @@ export async function POST(req: NextRequest) {
         // Engine is done
         sendEvent('ENGINE_COMPLETE', nextCommand.value);
         engineInstances.delete(sessionId);
+        sessionConfigs.delete(sessionId);
         controller.close();
 
       } catch (error: any) {
         console.error('Error in submit-completions:', error);
         sendEvent('ERROR', { message: error.message || 'An unknown error occurred.' });
         engineInstances.delete(sessionId);
+        sessionConfigs.delete(sessionId);
         controller.close();
       }
     },
      cancel() {
         if (sessionId) {
             engineInstances.delete(sessionId);
+            sessionConfigs.delete(sessionId);
         }
     }
   });
