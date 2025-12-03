@@ -5,8 +5,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Server, Monitor, Cpu, Activity, CheckCircle2, AlertCircle, Play, Pause, Zap } from 'lucide-react';
+import { ArrowRight, Server, Monitor, Cpu, Activity, CheckCircle2, AlertCircle, Play, Pause, Zap, Settings2 } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 // --- COMPONENTS ---
 
@@ -186,6 +192,12 @@ const FrontEnd = () => {
   // NEW STATE: Generation Mode
   const [generationMode, setGenerationMode] = useState<'short' | 'long'>('long');
 
+  // NEW STATE: Advanced Settings
+  const [gpuOffload, setGpuOffload] = useState<number>(0); // 0 (off) to 1 (max)
+  const [batchSize, setBatchSize] = useState<number>(512);
+  const [contextWindow, setContextWindow] = useState<number>(2048);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
   // NEW STATE: Step Results
   const [stepResults, setStepResults] = useState<StepResult[]>([]);
 
@@ -355,10 +367,47 @@ const FrontEnd = () => {
     // Reset TPS
     setTps('0.0');
 
+    // 1. Enforce Model Loading
+    setLogStream(prev => [...prev, `INFO: Enforcing model configuration for '${targetingModel}'...`]);
+    try {
+        const loadConfig: any = {
+            gpu: { ratio: gpuOffload === 0 ? "off" : (gpuOffload === 1 ? "max" : gpuOffload) },
+            contextLength: contextWindow,
+            evalBatchSize: batchSize
+        };
+
+        const configRes = await fetch('/api/lmstudio/manage-model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: targetingModel,
+                config: loadConfig
+            })
+        });
+
+        if (!configRes.ok) {
+            const err = await configRes.json();
+            throw new Error(`Failed to load/configure model: ${err.error || 'Unknown error'}`);
+        }
+        setLogStream(prev => [...prev, `INFO: Model loaded/configured successfully.`]);
+
+    } catch (error: any) {
+        console.error("Error configuring model:", error);
+        setErrorLog(prev => [...prev, `Configuration Error: ${error.message}`]);
+        setIsLoading(false);
+        setPipelineState('idle');
+        return; // Stop generation if model loading fails
+    }
+
     const payload = {
       harmful_text: prompt,
       targeting_model: targetingModel,
       grading_model: gradingModel,
+      load_config: { // Pass config for backend usage (e.g. grading model)
+          gpu: { ratio: gpuOffload === 0 ? "off" : (gpuOffload === 1 ? "max" : gpuOffload) },
+          contextLength: contextWindow,
+          evalBatchSize: batchSize
+      },
       transforms: {
         changeCase: changeCase,
         shuffleLetters: shuffleLetters,
@@ -672,6 +721,73 @@ const FrontEnd = () => {
                                 disabled={isLoading}
                             />
                         </div>
+                    </div>
+
+                    {/* Advanced Settings Collapsible */}
+                    <div className="w-full">
+                        <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen} className="space-y-2">
+                            <div className="flex items-center justify-between space-x-4 px-4 py-2 border rounded-md bg-secondary/20">
+                                <h4 className="text-sm font-semibold flex items-center">
+                                    <Settings2 className="h-4 w-4 mr-2" />
+                                    Advanced Model Settings (Enforced)
+                                </h4>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="w-9 p-0">
+                                        <ArrowRight className={`h-4 w-4 transition-transform duration-200 ${isAdvancedOpen ? 'rotate-90' : ''}`} />
+                                        <span className="sr-only">Toggle</span>
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </div>
+                            <CollapsibleContent className="space-y-4 p-4 border rounded-md bg-background/50">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <Label htmlFor="gpu-offload">GPU Offload Ratio</Label>
+                                            <span className="text-xs text-muted-foreground font-mono">
+                                                {gpuOffload === 0 ? "Off" : (gpuOffload === 1 ? "Max" : gpuOffload.toFixed(2))}
+                                            </span>
+                                        </div>
+                                        <Slider
+                                            id="gpu-offload"
+                                            min={0}
+                                            max={1}
+                                            step={0.01}
+                                            value={[gpuOffload]}
+                                            onValueChange={(vals) => setGpuOffload(vals[0])}
+                                            disabled={isLoading}
+                                        />
+                                        <p className="text-xs text-muted-foreground">0 = CPU Only, 1 = Max GPU</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="context-window">Context Window</Label>
+                                        <Input
+                                            id="context-window"
+                                            type="number"
+                                            value={contextWindow}
+                                            onChange={(e) => setContextWindow(Number(e.target.value))}
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="batch-size">Eval Batch Size</Label>
+                                        <Input
+                                            id="batch-size"
+                                            type="number"
+                                            value={batchSize}
+                                            onChange={(e) => setBatchSize(Number(e.target.value))}
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center space-x-2 pt-8">
+                                        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                                        <Label className="text-green-500 font-bold">mmap: Always On</Label>
+                                    </div>
+                                </div>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </div>
 
                     <div className="space-y-2">

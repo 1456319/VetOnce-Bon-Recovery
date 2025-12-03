@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
 
   const sessionConfig = sessionConfigs.get(sessionId);
   const gradingModel = sessionConfig?.gradingModel || 'google/gemma-3-1b'; // Fallback if missing
+  const loadConfig = sessionConfig?.loadConfig;
 
   const body = await req.json();
   const validatedBody = CompletionsSchema.parse(body);
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
             switch (command.type) {
                 case 'GET_ASRS_PARALLEL':
                     serviceResult = await Promise.all(
-                        command.requests.map(req => getLocalAsr(req.completion, req.behavior, undefined, gradingModel))
+                        command.requests.map(req => getLocalAsr(req.completion, req.behavior, undefined, gradingModel, loadConfig))
                     );
                     nextCommand = engineRunner.next(serviceResult);
                     break;

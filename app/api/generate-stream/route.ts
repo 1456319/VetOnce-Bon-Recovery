@@ -7,6 +7,16 @@ const ExperimentConfigSchema = z.object({
   harmful_text: z.string(),
   targeting_model: z.string(), // Renamed from model to targeting_model
   grading_model: z.string(),   // Added grading_model
+  load_config: z.object({
+      gpu: z.object({
+          ratio: z.union([z.number(), z.literal('max'), z.literal('off')]).optional(),
+          mainGpu: z.number().optional(),
+          splitStrategy: z.union([z.literal('evenly'), z.literal('favorMainGpu')]).optional(),
+      }).optional(),
+      contextLength: z.number().optional(),
+      evalBatchSize: z.number().optional(),
+      // We force tryMmap to true, so no need to validate it here, but we could allow it if we wanted to be flexible
+  }).optional(),
   transforms: z.object({
     changeCase: z.boolean(),
     shuffleLetters: z.boolean(),
@@ -58,7 +68,10 @@ export async function POST(req: NextRequest) {
         const validatedBody = ExperimentConfigSchema.parse(body);
 
         // Store session config
-        sessionConfigs.set(sessionId, { gradingModel: validatedBody.grading_model });
+        sessionConfigs.set(sessionId, {
+            gradingModel: validatedBody.grading_model,
+            loadConfig: validatedBody.load_config
+        });
 
         const engineParams = {
           ...validatedBody,
