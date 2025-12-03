@@ -85,8 +85,8 @@ Our goal is to contribute to this research by providing a verified implementatio
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/1456319/VetOnce-Bon-Recovery.git](https://github.com/1456319/VetOnce-Bon-Recovery.git)
-    cd VetOnce-Bon-Recovery
+    git clone [https://github.com/1456319/1456319-Bon-Recovery.git](https://github.com/1456319/1456319-Bon-Recovery.git)
+    cd 1456319-Bon-Recovery
     ```
 
 2.  **Install dependencies:** This project uses `npm`. The `package-lock.json` is included for deterministic installs.
