@@ -124,6 +124,7 @@ export type CompletionRequest = {
   type: 'GET_COMPLETION';
   prompt: string | ChatMessage[];
   msj_prefixes: [string, string][] | null;
+  seed?: number;
 };
 
 // Type for the object that the engine yields when it needs an ASR calculation.
@@ -147,8 +148,19 @@ export type ParallelAsrRequest = {
   requests: AsrRequest[];
 };
 
+// Type for the engine to yield a report of the current step's results.
+export type StepReport = {
+    type: 'STEP_REPORT';
+    payload: {
+        seed?: number;
+        prompt: string | ChatMessage[];
+        completion: string;
+        asr: number;
+    }[];
+};
+
 // The engine will yield one of these request types and expect a value back.
-export type BonEngineYield = ParallelCompletionRequest | ParallelAsrRequest;
+export type BonEngineYield = ParallelCompletionRequest | ParallelAsrRequest | StepReport;
 
 /**
  * The BonEngine class encapsulates the core logic of the Best-of-N algorithm.
@@ -235,7 +247,7 @@ export class BonEngine {
           this.params.optim_msj_assistant_content,
           this.logger,
         );
-        return { prompt, augmentation, msj_prefixes };
+        return { prompt, augmentation, msj_prefixes, seed };
       });
 
       // 2. Yield a single batch of completion requests to be executed in parallel.
@@ -246,6 +258,7 @@ export class BonEngine {
           type: 'GET_COMPLETION',
           prompt: c.prompt,
           msj_prefixes: c.msj_prefixes,
+          seed: c.seed,
         })),
         current_best_asr: this.best_asr_global,
       };
@@ -267,6 +280,16 @@ export class BonEngine {
         asr: asrs[i],
       }));
 
+      // NEW: Yield Step Report
+      yield {
+          type: 'STEP_REPORT',
+          payload: asr_results.map((r, i) => ({
+              seed: r.seed,
+              prompt: r.prompt,
+              completion: lm_responses[i].completion,
+              asr: r.asr
+          }))
+      };
 
       // 5. Find the best candidate from this step's results.
       const best_candidate_in_step = asr_results.reduce(
@@ -397,6 +420,18 @@ export class BonEngine {
                   this.logger?.(`BonEngine.runPrePair: New global best ASR found: ${asr}`);
               }
           }
+
+           // NEW: Yield Step Report for PrePAIR too (optional but good for consistency)
+           // I'll add it here as well for robustness, although PrePAIR doesn't use standard seeds.
+           yield {
+              type: 'STEP_REPORT',
+              payload: targetPrompts.map((prompt, i) => ({
+                  seed: undefined, // PrePAIR doesn't map to seeds 1:1 in the same way, or I could use step index
+                  prompt: prompt,
+                  completion: targetResponses[i].completion,
+                  asr: asrs[i]
+              }))
+          };
 
           // Prune history if too long to fit in context.
           // Whitepaper says "previous attempts", usually implies a sliding window or best + recent.

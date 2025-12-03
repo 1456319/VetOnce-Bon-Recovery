@@ -66,7 +66,14 @@ describe('BonEngine PrePAIR Mode', () => {
     const asrResponses = [0.9];
     result = generator.next(asrResponses);
 
-    // 8. Expect Result (or next loop, but n_steps=1)
+    // 8. Expect Step Report (NEW)
+    const stepReportBatch = result.value;
+    if (stepReportBatch.type !== 'STEP_REPORT') {
+        throw new Error(`Expected STEP_REPORT, got ${stepReportBatch.type}`);
+    }
+    result = generator.next();
+
+    // 9. Expect Result (or next loop, but n_steps=1)
     // Since n_steps=1, it should finish.
     expect(result.done).toBe(true);
     const finalResult = result.value;

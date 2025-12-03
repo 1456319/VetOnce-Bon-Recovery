@@ -90,6 +90,10 @@ export async function POST(req: NextRequest) {
                     command.requests.map(req => getLocalAsr(req.completion, req.behavior, logger, gradingModel))
                 );
                 break;
+            case 'STEP_REPORT':
+                // For this non-streaming route, we just ignore the intermediate report and continue.
+                serviceResult = undefined;
+                break;
             default:
                 const exhaustiveCheck: never = command;
                 throw new Error(`Unhandled command: ${exhaustiveCheck}`);
