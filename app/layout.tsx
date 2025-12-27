@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Best-of-N Prompt Jailbreaker",
+  title: "Best-of-N Typescript RNG Error proof",
   description: "Generate N variants and pick the best",
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {

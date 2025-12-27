@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
                 const model = await getLoadedModel(targetingModel, logger);
                 serviceResult = await Promise.all(
                     command.requests.map(async (req) => {
-                        const response = await model.respond(req.prompt);
+                        const response = await model.respond(req.prompt as any);
                         return { completion: response.content, stop_reason: 'stop' };
                     })
                 );
