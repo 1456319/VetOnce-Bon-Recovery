@@ -29,7 +29,7 @@ The `app/api/generate/route.ts` endpoint provides an interface for running the B
 *   `random_prefix_length` (number, optional): The length of a random prefix to add.
 *   `random_suffix_length` (number, optional): The length of a random suffix to add.
 
-The endpoint returns a JSON object containing the augmented prompt, the details of the augmentations used, and the response from the language model.
+The endpoint returns a JSON object containing the augmented prompt, the details of the augmentations used, and the (currently mocked) response from the language model.
 
 ## Mathematical Underpinnings
 
