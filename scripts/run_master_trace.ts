@@ -6,6 +6,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { PythonRandomProvider } from '../src/utils/PythonRandomProvider.ts';
 import { processTextAugmentation } from '../app/lib/bon_debug.ts';
+import { buildPythonCommand } from '../src/utils/platform-config.ts';
 
 // --- 1. Configuration ---
 const SEED = 123;
@@ -15,7 +16,6 @@ const SCRAMBLING = true;
 const CAPITALIZATION = true;
 const NOISING = true;
 
-const PY_VERIFIER_SCRIPT = path.resolve(process.cwd(), 'scripts/run_py_verifier.py');
 const TS_LOG = path.resolve(process.cwd(), 'scripts/trace_ts.log');
 const PY_LOG = path.resolve(process.cwd(), 'scripts/trace_py.log');
 
@@ -37,9 +37,7 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
     // Escape special characters for shell command
     const npStateJsonString = JSON.stringify(rngProvider.np_state_json).replace(/"/g, '\\"');
 
-    const command = [
-        '.venv/bin/python',
-        PY_VERIFIER_SCRIPT,
+    const args = [
         `'${rngProvider.std_state_b64}'`,
         `"${npStateJsonString}"`,
         SEED,
@@ -48,7 +46,10 @@ function runPythonVerifier(rngProvider: PythonRandomProvider) {
         SCRAMBLING,
         CAPITALIZATION,
         NOISING
-    ].join(' ');
+    ];
+
+    // Use the platform-aware command builder
+    const command = buildPythonCommand('scripts/run_py_verifier.py', args);
 
     try {
         execSync(command, { stdio: 'inherit', encoding: 'utf-8' });
