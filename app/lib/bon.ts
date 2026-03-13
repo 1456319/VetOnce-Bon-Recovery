@@ -192,7 +192,16 @@ export function processDecoratedTextWithAugmentations(
 
   let msj_prefixes: [string, string][] | null = null;
   if (msj_num_shots > 0) {
+    const baseDir = path.resolve(process.cwd(), 'prompts/msj_prompts');
     const jsonPath = path.resolve(process.cwd(), msj_path);
+
+    const relative = path.relative(baseDir, jsonPath);
+    const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
+
+    if (!isSafe) {
+      throw new Error(`Invalid msj_path: ${msj_path}. Path must be within prompts/msj_prompts/`);
+    }
+
     const all_msj_prefixes: [string, string][] = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
 
     if (msj_shuffle) {
