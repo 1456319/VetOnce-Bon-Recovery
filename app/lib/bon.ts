@@ -72,18 +72,19 @@ export function applyRandomCapitalization(text: string, sigma: number, rng: Pyth
     return result;
 }
 
+// Replicates Python's `isprintable()` for the relevant character set.
+// Based on the generated log, non-printable characters in the 0-255 range are:
+// 0-31, 127, 129, 141, 143, 144, 157, 173
+const NON_PRINTABLE = new Set([
+    ...Array.from({ length: 32 }, (_, i) => i), // 0-31
+    127, 128, 129, 141, 143, 144, 157, 173
+]);
+
 /**
  * Applies ASCII noising like the Python script.
  */
 function isPrintable(charCode: number): boolean {
-    // Replicates Python's `isprintable()` for the relevant character set.
-    // Based on the generated log, non-printable characters in the 0-255 range are:
-    // 0-31, 127, 129, 141, 143, 144, 157, 173
-    const nonPrintable = new Set([
-        ...Array.from({ length: 32 }, (_, i) => i), // 0-31
-        127, 128, 129, 141, 143, 144, 157, 173
-    ]);
-    return !nonPrintable.has(charCode);
+    return !NON_PRINTABLE.has(charCode);
 }
 
 export function applyAsciiNoising(text: string, sigma: number, rng: PythonRandomProvider, logger?: Logger): string {
