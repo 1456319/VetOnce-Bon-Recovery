@@ -158,6 +158,17 @@ export function processTextAugmentation(
   return [augmentedText, text_augmentation];
 }
 
+const msjCache: Record<string, [string, string][]> = {};
+
+function getMsjPrefixes(msj_path: string): [string, string][] {
+  const jsonPath = validateMsjPath(msj_path);
+  if (!msjCache[jsonPath]) {
+    msjCache[jsonPath] = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+  }
+  // Deep clone to prevent mutations of the cached data (e.g., shuffling)
+  return msjCache[jsonPath].map(pair => [...pair] as [string, string]);
+}
+
 /**
  * Processes the decorated text with the selected augmentations and returns the final prompt.
  */
@@ -194,8 +205,7 @@ export function processDecoratedTextWithAugmentations(
 
   let msj_prefixes: [string, string][] | null = null;
   if (msj_num_shots > 0) {
-    const jsonPath = validateMsjPath(msj_path);
-    const all_msj_prefixes: [string, string][] = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+    const all_msj_prefixes = getMsjPrefixes(msj_path);
 
     if (msj_shuffle) {
       const rng = new PythonRandomProvider(seed);
