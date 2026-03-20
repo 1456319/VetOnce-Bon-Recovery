@@ -2,6 +2,7 @@ import { getTokenizer, getAttackString } from './text_utils.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PythonRandomProvider } from '../../src/utils/PythonRandomProvider.ts';
+import { validateMsjPath } from './security_utils.ts';
 
 // A simple logger type for dependency injection
 export type Logger = (message: string) => void;
@@ -192,7 +193,7 @@ export function processDecoratedTextWithAugmentations(
 
   let msj_prefixes: [string, string][] | null = null;
   if (msj_num_shots > 0) {
-    const jsonPath = path.resolve(process.cwd(), msj_path);
+    const jsonPath = validateMsjPath(msj_path);
     const all_msj_prefixes: [string, string][] = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
 
     if (msj_shuffle) {
