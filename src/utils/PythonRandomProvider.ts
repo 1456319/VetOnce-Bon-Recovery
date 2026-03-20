@@ -2,6 +2,7 @@
 
 import { execSync } from 'child_process';
 import { MersenneTwister } from './MersenneTwister.ts';
+import { buildPythonCommand } from './platform-config.ts';
 
 // --- Interfaces for the new JSON structure from Python ---
 
@@ -39,12 +40,15 @@ export class PythonRandomProvider {
         }
 
         // 1. Call the refactored Python script to get all states
-        const command = `./.venv/bin/python scripts/get_all_seed_states.py ${seed}`;
+        // Use the platform-aware command builder
+        const command = buildPythonCommand('scripts/get_all_seed_states.py', [seed]);
+
         let statesJson: string;
         try {
             statesJson = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });
         } catch (error: any) {
-            throw new Error(error.stderr);
+            // Rethrow with stderr for better debugging
+            throw new Error(`Failed to execute python script. Command: ${command}. Error: ${error.message} Stderr: ${error.stderr}`);
         }
 
         const allStates: IAllPythonStates = JSON.parse(statesJson.trim());

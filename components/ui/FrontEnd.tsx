@@ -367,6 +367,29 @@ const FrontEnd = () => {
     // Reset TPS
     setTps('0.0');
 
+    // CHECK: Ensure no model is already loaded (different from targeting)
+    try {
+        const statusRes = await fetch('/api/system-status');
+        if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.loadedModels && statusData.loadedModels.length > 0) {
+                // Check if the loaded model is different from the selected targeting model
+                const loaded = statusData.loadedModels[0];
+                const isSame = loaded.path === targetingModel || loaded.identifier === targetingModel;
+
+                if (!isSame) {
+                    throw new Error(`Model "${loaded.identifier}" is already loaded. Please unload it in LM Studio before starting a new session with "${targetingModel}". Loading two models simultaneously is disabled.`);
+                }
+            }
+        }
+    } catch (error: any) {
+        console.error("Model status check failed:", error);
+        setErrorLog(prev => [...prev, `Status Check Error: ${error.message}`]);
+        setIsLoading(false);
+        setPipelineState('idle');
+        return; // STOP
+    }
+
     // 1. Enforce Model Loading
     setLogStream(prev => [...prev, `INFO: Enforcing model configuration for '${targetingModel}'...`]);
     try {
