@@ -159,6 +159,20 @@ export type StepReport = {
     }[];
 };
 
+/**
+ * Type for the completion response from an LLM.
+ */
+export type LlmCompletion = {
+    completion: string;
+    stop_reason?: string;
+};
+
+/**
+ * The type of value that the engine expects to receive when its generator is resumed.
+ * This represents the results of the requests yielded by the engine.
+ */
+export type BonEngineNextValue = LlmCompletion[] | number[] | void;
+
 // The engine will yield one of these request types and expect a value back.
 export type BonEngineYield = ParallelCompletionRequest | ParallelAsrRequest | StepReport;
 
@@ -209,7 +223,7 @@ export class BonEngine {
    * This allows the core logic to be decoupled from the web server.
    * It yields requests for external computations (LLM calls, ASR).
    */
-  public *run(): Generator<BonEngineYield, BonEngineOutMessage, any> {
+  public *run(): Generator<BonEngineYield, BonEngineOutMessage, BonEngineNextValue> {
     this.logger?.('BonEngine.run: Starting main loop.');
 
     if (this.params.optim_prefix) {
@@ -252,7 +266,7 @@ export class BonEngine {
 
       // 2. Yield a single batch of completion requests to be executed in parallel.
       this.logger?.(`BonEngine.run: Yielding a batch of ${candidates.length} completion requests.`);
-      const lm_responses: { completion: string }[] = yield {
+      const lm_responses = (yield {
         type: 'GET_COMPLETIONS_PARALLEL',
         requests: candidates.map(c => ({
           type: 'GET_COMPLETION',
@@ -261,18 +275,18 @@ export class BonEngine {
           seed: c.seed,
         })),
         current_best_asr: this.best_asr_global,
-      };
+      }) as LlmCompletion[];
 
       // 3. Yield a single batch of ASR requests to be executed in parallel.
       this.logger?.(`BonEngine.run: Yielding a batch of ${lm_responses.length} ASR requests.`);
-      const asrs: number[] = yield {
+      const asrs = (yield {
         type: 'GET_ASRS_PARALLEL',
         requests: lm_responses.map(resp => ({
           type: 'GET_ASR',
           completion: resp.completion,
           behavior: this.params.harmful_text,
         })),
-      };
+      }) as number[];
 
       // 4. Combine the original candidates with the ASR results.
       const asr_results = candidates.map((candidate, i) => ({
@@ -333,7 +347,7 @@ export class BonEngine {
    * Implements the Prefix PAIR (PrePAIR) optimization loop.
    * This replaces the standard BoN loop when optim_prefix is true.
    */
-  private *runPrePair(): Generator<BonEngineYield, BonEngineOutMessage, any> {
+  private *runPrePair(): Generator<BonEngineYield, BonEngineOutMessage, BonEngineNextValue> {
       this.logger?.('BonEngine.runPrePair: Starting PrePAIR optimization loop.');
 
       let current_prefix = this.params.prefix || '';
@@ -355,7 +369,7 @@ export class BonEngine {
 
           this.logger?.(`BonEngine.runPrePair: Requesting ${attackerRequests.length} candidate prefixes from Attacker LLM.`);
 
-          const attackerResponses: { completion: string }[] = yield {
+          const attackerResponses = (yield {
               type: 'GET_COMPLETIONS_PARALLEL',
               requests: attackerRequests.map(prompt => ({
                   type: 'GET_COMPLETION',
@@ -363,7 +377,7 @@ export class BonEngine {
                   msj_prefixes: null,
               })),
               current_best_asr: this.best_asr_global,
-          };
+          }) as LlmCompletion[];
 
           // 2. Evaluate Candidates
           // Construct target prompts: candidate_prefix + harmful_text
@@ -376,7 +390,7 @@ export class BonEngine {
 
           this.logger?.(`BonEngine.runPrePair: Evaluating ${targetPrompts.length} candidate prefixes.`);
 
-          const targetResponses: { completion: string }[] = yield {
+          const targetResponses = (yield {
               type: 'GET_COMPLETIONS_PARALLEL',
               requests: targetPrompts.map(prompt => ({
                   type: 'GET_COMPLETION',
@@ -384,17 +398,17 @@ export class BonEngine {
                   msj_prefixes: null,
               })),
               current_best_asr: this.best_asr_global,
-          };
+          }) as LlmCompletion[];
 
           // 3. Get ASRs
-          const asrs: number[] = yield {
+          const asrs = (yield {
               type: 'GET_ASRS_PARALLEL',
               requests: targetResponses.map(resp => ({
                   type: 'GET_ASR',
                   completion: resp.completion,
                   behavior: this.params.harmful_text,
               })),
-          };
+          }) as number[];
 
           // 4. Process Results & Update History
           for (let i = 0; i < candidatePrefixes.length; i++) {

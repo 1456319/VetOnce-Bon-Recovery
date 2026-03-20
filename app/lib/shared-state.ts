@@ -1,4 +1,4 @@
-import { BonEngineYield } from './bon-engine';
+import { BonEngineYield, BonEngineOutMessage, BonEngineNextValue } from './bon-engine';
 import { LLMLoadModelConfig } from '@lmstudio/sdk';
 
 export interface SessionConfig {
@@ -7,7 +7,7 @@ export interface SessionConfig {
 }
 
 // This map stores active BonEngine generator instances, keyed by session ID.
-export const engineInstances = new Map<string, Generator<BonEngineYield, any, any>>();
+export const engineInstances = new Map<string, Generator<BonEngineYield, BonEngineOutMessage, BonEngineNextValue>>();
 
 // This map stores session-specific configuration, such as the grading model.
 export const sessionConfigs = new Map<string, SessionConfig>();
